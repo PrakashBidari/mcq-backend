@@ -25,7 +25,7 @@
 
             <form action="{{ route('questions.store') }}" method="POST" class="space-y-6 p-6">
                 @csrf
-
+                @include('partials.furigana-guide')
                 <!-- Question Sets (Searchable Multi-Select) -->
                 <div x-data="{
                     selectedSets: {{ json_encode(old('question_sets', [])) }},
