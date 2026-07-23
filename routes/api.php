@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactController;
+use App\Http\Controllers\Api\PurchaseController;
 use App\Http\Controllers\Api\QuizController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +26,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profile', [AuthController::class, 'getProfile']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::post('/update-profile-image', [AuthController::class, 'updateProfileImage']);
+    Route::delete('/delete-account', [AuthController::class, 'deleteAccount']);
 });
 
 
@@ -38,11 +40,16 @@ Route::post('/categories/{categoryId}/random-questions', [QuizController::class,
 Route::get('/books', [QuizController::class, 'getBooks']);
 Route::get('/blogs', [QuizController::class, 'getBlogs']);
 Route::get('/faqs', [QuizController::class, 'getFaqs']);
+Route::get('/ads', [QuizController::class, 'getAds']);
+Route::get('/price-tiers', [PurchaseController::class, 'priceTiers']);
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/quiz/save-attempt', [QuizController::class, 'saveQuizAttempt']);
     Route::get('/quiz/history', [QuizController::class, 'getUserQuizHistory']);
+
+    Route::post('/purchases/verify', [PurchaseController::class, 'verify']);
+    Route::get('/purchases/mine', [PurchaseController::class, 'myPurchases']);
 });
 
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Advertisement;
 use App\Models\Blog;
 use App\Models\Book;
 use App\Models\Category;
@@ -41,8 +42,10 @@ class QuizController extends Controller
             $query->where('is_active', true)->withCount('questions');
         }])->findOrFail($categoryId);
 
-        // Add is_paid and price to each question set
-        $questionSets = $category->questionSets->map(function ($set) {
+        $user = auth('sanctum')->user();
+
+        // Add is_paid, price and ownership to each question set
+        $questionSets = $category->questionSets->map(function ($set) use ($user) {
             return [
                 'id'              => $set->id,
                 'name'            => $set->name,
@@ -50,6 +53,8 @@ class QuizController extends Controller
                 'is_active'       => $set->is_active,
                 'is_paid'         => (bool) $set->is_paid,
                 'price'           => $set->is_paid ? (float) $set->price : null,
+                'price_tier'      => $set->is_paid ? $set->price_tier : null,
+                'is_owned'        => $set->isOwnedBy($user?->id),
                 'questions_count' => $set->questions_count,
             ];
         });
@@ -64,7 +69,6 @@ class QuizController extends Controller
     }
 
     // Get questions from a specific question set
-
     public function getQuestionSet($setId)
     {
         $questionSet = QuestionSet::with([
@@ -75,6 +79,17 @@ class QuizController extends Controller
             },
             'category',
         ])->where('is_active', true)->findOrFail($setId);
+
+        $user = auth('sanctum')->user();
+
+        if (!$questionSet->isOwnedBy($user?->id)) {
+            return response()->json([
+                'success' => false,
+                'reason'  => 'purchase_required',
+                'message' => 'This question set must be purchased before it can be accessed.',
+                'data'    => $this->purchaseRequiredPayload($questionSet),
+            ], 403);
+        }
 
         $questions = $questionSet->questions->map(function ($question) use ($questionSet) {
             return [
@@ -104,6 +119,19 @@ class QuizController extends Controller
                 'questions' => $questions
             ]
         ]);
+    }
+
+    private function purchaseRequiredPayload(QuestionSet $questionSet): array
+    {
+        $bundleId = config('price_tiers.bundle_id');
+
+        return [
+            'question_set_id'    => $questionSet->id,
+            'price'              => (float) $questionSet->price,
+            'price_tier'         => $questionSet->price_tier,
+            'ios_product_id'     => $questionSet->price_tier ? $bundleId . '.' . $questionSet->price_tier : null,
+            'android_product_id' => $questionSet->price_tier,
+        ];
     }
 
     // public function getQuestionSet($setId)
@@ -156,11 +184,13 @@ class QuizController extends Controller
         }
 
         $category = Category::findOrFail($categoryId);
+        $user = auth('sanctum')->user();
 
         $questionIds = QuestionSet::where('category_id', $categoryId)
             ->where('is_active', true)
             ->with('questions')
             ->get()
+            ->filter(fn ($set) => $set->isOwnedBy($user?->id))
             ->pluck('questions')
             ->flatten()
             ->pluck('id')
@@ -332,6 +362,26 @@ class QuizController extends Controller
         ]);
     }
 
+    public function getAds()
+    {
+        $ads = Advertisement::where('is_active', true)
+            ->get()
+            ->map(function ($ad) {
+                return [
+                    'position'    => $ad->position,
+                    'title'       => $ad->title,
+                    'description' => $ad->description,
+                    'buttonText'  => $ad->button_text,
+                    'linkUrl'     => $ad->link_url,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $ads
+        ]);
+    }
+
     public function searchQuestionSets(Request $request)
     {
         $query = $request->get('q', '');
@@ -340,18 +390,22 @@ class QuizController extends Controller
             return response()->json(['success' => true, 'data' => []]);
         }
 
+        $user = auth('sanctum')->user();
+
         $sets = QuestionSet::with('category')
             ->where('is_active', true)
             ->where('name', 'LIKE', "%{$query}%")
             ->limit(10)
             ->get()
-            ->map(function ($set) {
+            ->map(function ($set) use ($user) {
                 return [
                     'id'              => $set->id,
                     'name'            => $set->name,
                     'category'        => $set->category->name,
                     'is_paid'         => (bool) $set->is_paid,
                     'price'           => $set->is_paid ? (float) $set->price : null,
+                    'price_tier'      => $set->is_paid ? $set->price_tier : null,
+                    'is_owned'        => $set->isOwnedBy($user?->id),
                     'questions_count' => $set->questions()->count(),
                 ];
             });

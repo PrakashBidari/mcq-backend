@@ -14,6 +14,7 @@ class PermissionHelper
             'Book' => 'Books',
             'Blog' => 'Blog',
             'Faq' => 'FAQ',
+            'Advertise' => 'Advertise',
             'ContactMessage',
             'ContactSetting' => 'ContactSettings',
             'User' => 'Users',

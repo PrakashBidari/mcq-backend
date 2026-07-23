@@ -16,6 +16,7 @@ class QuestionSet extends Model
         'is_active',
         'is_paid',
         'price',
+        'price_tier',
         'time_limit',
     ];
 
@@ -37,5 +38,23 @@ class QuestionSet extends Model
                     ->withPivot('order')
                     ->withTimestamps()
                     ->orderBy('pivot_order');
+    }
+
+    public function purchases()
+    {
+        return $this->hasMany(Purchase::class);
+    }
+
+    public function isOwnedBy(?int $userId): bool
+    {
+        if (!$this->is_paid) {
+            return true;
+        }
+
+        if (!$userId) {
+            return false;
+        }
+
+        return Purchase::userOwns($userId, $this->id);
     }
 }

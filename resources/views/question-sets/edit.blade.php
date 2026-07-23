@@ -118,19 +118,32 @@
                     </label>
                 </div>
 
-                <!-- Price Field -->
+                <!-- Price Tier Field -->
                 <div id="price_field" class="{{ old('is_paid', $questionSet->is_paid) ? '' : 'hidden' }}">
-                    <label for="price" class="mb-2 block text-sm font-semibold text-gray-700">
-                        Price <span class="text-red-500">*</span>
+                    <label for="price_tier" class="mb-2 block text-sm font-semibold text-gray-700">
+                        Price Tier <span class="text-red-500">*</span>
                     </label>
-                    <div class="relative">
-                        <span class="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-gray-500">$</span>
-                        <input type="number" name="price" id="price" value="{{ old('price', $questionSet->price) }}"
-                            min="0" step="0.01" {{ old('is_paid', $questionSet->is_paid) ? 'required' : '' }}
-                            class="w-full rounded-lg border border-gray-300 py-3 pl-8 pr-4 focus:border-transparent focus:ring-2 focus:ring-purple-500"
-                            placeholder="0.00">
-                    </div>
-                    @error('price')
+                    <select name="price_tier" id="price_tier"
+                        {{ old('is_paid', $questionSet->is_paid) ? 'required' : '' }}
+                        class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500">
+                        <option value="">Select a price tier</option>
+                        @foreach (config('price_tiers.tiers') as $tier => $amount)
+                            <option value="{{ $tier }}"
+                                {{ old('price_tier', $questionSet->price_tier) === $tier ? 'selected' : '' }}>
+                                &yen;{{ number_format($amount) }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @if ($questionSet->is_paid && (!$questionSet->price_tier || !array_key_exists($questionSet->price_tier, config('price_tiers.tiers'))))
+                        <p class="mt-1 text-sm text-amber-600">
+                            This set's price tier no longer exists in the current tier list - pick a tier to keep it purchasable.
+                        </p>
+                    @endif
+                    <p class="mt-1 text-xs text-gray-500">
+                        Prices are fixed tiers matching real App Store / Play Store in-app-purchase products -
+                        the store product must exist for this tier before it can be bought in the app.
+                    </p>
+                    @error('price_tier')
                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                     @enderror
                 </div>
@@ -162,7 +175,7 @@
     <script>
         function togglePriceField(checkbox) {
             const priceField = document.getElementById('price_field');
-            const priceInput = document.getElementById('price');
+            const priceInput = document.getElementById('price_tier');
             if (checkbox.checked) {
                 priceField.classList.remove('hidden');
                 priceInput.required = true;

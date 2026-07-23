@@ -35,13 +35,14 @@ class QuestionSetController extends Controller
             'description' => 'nullable|string',
             'is_active'   => 'boolean',
             'is_paid'     => 'boolean',
-            'price'       => 'nullable|numeric|min:0|required_if:is_paid,1',
+            'price_tier'  => 'nullable|string|in:' . implode(',', array_keys(config('price_tiers.tiers'))) . '|required_if:is_paid,1',
             'time_limit'  => 'nullable|numeric|min:0.1|max:180',
         ]);
 
-        $validated['is_active'] = $request->has('is_active');
-        $validated['is_paid']   = $request->has('is_paid');
-        $validated['price']     = $validated['is_paid'] ? $request->price : null;
+        $validated['is_active']  = $request->has('is_active');
+        $validated['is_paid']    = $request->has('is_paid');
+        $validated['price_tier'] = $validated['is_paid'] ? $request->price_tier : null;
+        $validated['price']      = $validated['is_paid'] ? config('price_tiers.tiers')[$request->price_tier] : null;
         $validated['time_limit'] = $request->time_limit ?: null;
 
         QuestionSet::create($validated);
@@ -72,13 +73,14 @@ class QuestionSetController extends Controller
             'description' => 'nullable|string',
             'is_active'   => 'boolean',
             'is_paid'     => 'boolean',
-            'price'       => 'nullable|numeric|min:0|required_if:is_paid,1',
+            'price_tier'  => 'nullable|string|in:' . implode(',', array_keys(config('price_tiers.tiers'))) . '|required_if:is_paid,1',
             'time_limit'  => 'nullable|numeric|min:0.1|max:180',
         ]);
 
         $validated['is_active']  = $request->has('is_active');
         $validated['is_paid']    = $request->has('is_paid');
-        $validated['price']      = $validated['is_paid'] ? $request->price : null;
+        $validated['price_tier'] = $validated['is_paid'] ? $request->price_tier : null;
+        $validated['price']      = $validated['is_paid'] ? config('price_tiers.tiers')[$request->price_tier] : null;
         $validated['time_limit'] = $request->time_limit ?: null;
 
         $questionSet->update($validated);

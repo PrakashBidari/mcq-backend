@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Dashboard') - MCQ App</title>
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -165,6 +166,19 @@
                     </a>
                 @endif
 
+                <!-- Advertise -->
+                @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('read', 'Advertise'))
+                    <a href="{{ route('advertisements.index') }}"
+                        class="{{ request()->routeIs('advertisements.*') ? 'bg-purple-600' : 'hover:bg-purple-600' }} flex items-center gap-3 rounded-lg px-4 py-3 transition">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z">
+                            </path>
+                        </svg>
+                        Advertise
+                    </a>
+                @endif
+
                 <!-- Contact Us -->
                 <div x-data="{ open: false }" class="space-y-1">
                     <button @click="open = !open"
@@ -279,6 +293,22 @@
 
                     <!-- User Menu -->
                     <div class="flex items-center gap-4">
+                        <div class="relative">
+                            <a href="{{ route('chat.index') }}" id="nav-chat-btn"
+                                class="flex items-center gap-2 rounded-lg bg-purple-100 px-3 py-2 text-sm text-purple-600 transition hover:bg-purple-200 {{ request()->routeIs('chat.*') ? 'ring-2 ring-purple-400' : '' }}">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z">
+                                    </path>
+                                </svg>
+                                <span class="hidden font-medium md:inline">Chat</span>
+                            </a>
+                            <span id="chat-nav-badge"
+                                class="absolute -top-1.5 -right-1.5 hidden min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 py-0.5 text-[10px] font-bold leading-none text-white shadow-md ring-2 ring-white">
+                                0
+                            </span>
+                        </div>
+
                         <div class="hidden text-right md:block">
                             <p class="text-sm font-semibold text-gray-700">{{ auth()->user()->name }}</p>
                             <p class="text-xs text-gray-500">{{ ucfirst(auth()->user()->role) }}</p>
@@ -331,6 +361,71 @@
         </div>
     </div>
     @stack('scripts')
+
+    @auth
+    @if(in_array(auth()->user()->role, ['admin', 'teacher']))
+    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+    <script>
+    (function () {
+        const badge   = document.getElementById('chat-nav-badge');
+        const onChat  = {{ request()->routeIs('chat.*') ? 'true' : 'false' }};
+        const CSRF    = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const ME_ID   = {{ auth()->id() }};
+        let unread    = 0;
+
+        function updateBadge(n) {
+            unread = Math.max(0, n);
+            if (unread > 0) {
+                badge.textContent = unread > 99 ? '99+' : unread;
+                badge.classList.remove('hidden');
+                badge.classList.add('flex');
+            } else {
+                badge.classList.add('hidden');
+                badge.classList.remove('flex');
+            }
+        }
+
+        // fetch initial unread count
+        fetch('/dashboard/chat/unread', {
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF }
+        })
+        .then(r => r.json())
+        .then(counts => {
+            const total = Object.values(counts).reduce((s, v) => s + parseInt(v), 0);
+            updateBadge(total);
+        })
+        .catch(() => {});
+
+        // expose so the chat page can control the badge
+        window.setChatNavBadge    = (n) => updateBadge(n);
+        window.clearChatNavBadge  = ()  => updateBadge(0);
+        window.incrementChatNavBadge = () => updateBadge(unread + 1);
+
+        // real-time: subscribe to my private channel
+        // skip if we're on the chat page — that page already has its own Pusher instance
+        if (!onChat) {
+            const pusher = new Pusher("{{ env('REVERB_APP_KEY') }}", {
+                wsHost:            "{{ env('REVERB_HOST', 'localhost') }}",
+                wsPort:            {{ env('REVERB_PORT', 6001) }},
+                forceTLS:          false,
+                enabledTransports: ['ws', 'wss'],
+                cluster:           '',
+                authEndpoint:      '/broadcasting/auth',
+                auth: { headers: { 'X-CSRF-TOKEN': CSRF } },
+            });
+
+            const channel = pusher.subscribe('private-chat.' + ME_ID);
+            channel.bind('message.sent', function (data) {
+                // only count messages sent TO me (not my own)
+                if (data.sender_id !== ME_ID) {
+                    updateBadge(unread + 1);
+                }
+            });
+        }
+    })();
+    </script>
+    @endif
+    @endauth
 </body>
 
 </html>

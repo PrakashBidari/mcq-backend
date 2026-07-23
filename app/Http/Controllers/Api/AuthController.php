@@ -543,6 +543,39 @@ class AuthController extends Controller
         ]);
     }
 
+    // Delete Account
+    public function deleteAccount(Request $request)
+    {
+        $request->validate([
+            'password' => 'required',
+        ]);
+
+        $user = $request->user();
+
+        if (!Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Incorrect password'
+            ], 400);
+        }
+
+        // Remove profile image from storage
+        if ($user->profile_image && \Storage::disk('public')->exists($user->profile_image)) {
+            \Storage::disk('public')->delete($user->profile_image);
+        }
+
+        // Revoke all API tokens
+        $user->tokens()->delete();
+
+        // Delete the user (cascades to quiz attempts, chat messages, permissions, etc.)
+        $user->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Account deleted successfully'
+        ], 200);
+    }
+
     public function getProfile(Request $request)
     {
         try {
