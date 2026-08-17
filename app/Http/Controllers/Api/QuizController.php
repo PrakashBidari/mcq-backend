@@ -74,6 +74,9 @@ class QuizController extends Controller
                 'questionSets as paid_sets_count' => function ($query) {
                     $query->where('is_paid', true)->where('is_active', true);
                 },
+                'packages as packages_count' => function ($query) {
+                    $query->where('is_active', true);
+                },
             ])
             ->get();
 

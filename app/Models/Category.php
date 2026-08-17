@@ -23,6 +23,11 @@ class Category extends Model
         return $this->hasMany(QuestionSet::class);
     }
 
+    public function packages()
+    {
+        return $this->hasMany(QuestionSetPackage::class, 'subcategory_id');
+    }
+
     public function parent()
     {
         return $this->belongsTo(self::class, 'parent_id');
