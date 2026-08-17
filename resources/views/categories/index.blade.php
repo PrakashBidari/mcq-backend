@@ -48,7 +48,15 @@
                             <td class="py-4">
                                 <div class="flex items-center gap-3">
                                     <div class="w-3 h-3 rounded-full" style="background-color: {{ $category->color }};"></div>
-                                    <span class="font-semibold text-gray-800">{{ $category->name }}</span>
+                                    <span class="font-semibold text-gray-800">
+                                        @if ($category->parent)
+                                            <span class="text-gray-400">{{ $category->parent->name }} &rarr;</span>
+                                        @endif
+                                        {{ $category->name }}
+                                    </span>
+                                    @if ($category->children_count > 0)
+                                        <span class="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">{{ $category->children_count }} subcategories</span>
+                                    @endif
                                 </div>
                             </td>
                             <td class="py-4">

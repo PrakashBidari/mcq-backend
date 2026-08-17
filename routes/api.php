@@ -2,8 +2,10 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactController;
+use App\Http\Controllers\Api\PackageController;
 use App\Http\Controllers\Api\PurchaseController;
 use App\Http\Controllers\Api\QuizController;
+use App\Http\Controllers\Api\WalletController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -34,14 +36,21 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Public routes
 Route::get('/categories', [QuizController::class, 'getCategories']);
+Route::get('/categories/{categoryId}/subcategories', [QuizController::class, 'getSubcategories']);
 Route::get('/categories/{categoryId}/question-sets', [QuizController::class, 'getQuestionSetsByCategory']);
+Route::get('/categories/{categoryId}/packages', [PackageController::class, 'index']);
+Route::get('/packages/{id}', [PackageController::class, 'show']);
 Route::get('/question-set/{setId}', [QuizController::class, 'getQuestionSet']);
 Route::post('/categories/{categoryId}/random-questions', [QuizController::class, 'getRandomQuestionsFromCategory']);
 Route::get('/books', [QuizController::class, 'getBooks']);
+Route::get('/book-categories', [QuizController::class, 'getBookCategories']);
 Route::get('/blogs', [QuizController::class, 'getBlogs']);
+Route::get('/blog-categories', [QuizController::class, 'getBlogCategories']);
 Route::get('/faqs', [QuizController::class, 'getFaqs']);
 Route::get('/ads', [QuizController::class, 'getAds']);
 Route::get('/price-tiers', [PurchaseController::class, 'priceTiers']);
+Route::get('/attempt-packs', [WalletController::class, 'attemptPacks']);
+Route::get('/subscription-plans', [WalletController::class, 'subscriptionPlans']);
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -50,6 +59,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/purchases/verify', [PurchaseController::class, 'verify']);
     Route::get('/purchases/mine', [PurchaseController::class, 'myPurchases']);
+
+    Route::get('/wallet/balance', [WalletController::class, 'balance']);
+    Route::get('/subscriptions/mine', [WalletController::class, 'mySubscription']);
 });
 
 

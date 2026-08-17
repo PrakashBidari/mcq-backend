@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Book;
-use App\Models\Category;
+use App\Models\BookCategory;
 use Illuminate\Http\Request;
 
 class BookController extends Controller
@@ -32,7 +32,7 @@ class BookController extends Controller
         }
 
         $books = $query->get();
-        $categories = Category::all();
+        $categories = BookCategory::all();
 
         return view('books.index', compact('books', 'categories'));
     }
@@ -44,7 +44,7 @@ class BookController extends Controller
             return redirect()->route('books.index')->with('error', 'You do not have permission to create books.');
         }
 
-        $categories = Category::all();
+        $categories = BookCategory::all();
         return view('books.create', compact('categories'));
     }
 
@@ -58,7 +58,7 @@ class BookController extends Controller
         }
 
         $book = Book::findOrFail($id);
-        $categories = Category::all();
+        $categories = BookCategory::all();
 
         return view('books.edit', compact('book', 'categories'));
     }
@@ -80,7 +80,7 @@ class BookController extends Controller
             'rating' => 'required|numeric|min:0|max:5',
             'pages' => 'required|integer|min:1',
             'duration' => 'required|string',
-            'category_id' => 'required|exists:categories,id',
+            'category_id' => 'required|exists:book_categories,id',
             'difficulty' => 'required|in:Beginner,Intermediate,Advanced',
             'students' => 'required|integer|min:0',
         ]);
@@ -117,7 +117,7 @@ class BookController extends Controller
             'rating' => 'required|numeric|min:0|max:5',
             'pages' => 'required|integer|min:1',
             'duration' => 'required|string',
-            'category_id' => 'required|exists:categories,id',
+            'category_id' => 'required|exists:book_categories,id',
             'difficulty' => 'required|in:Beginner,Intermediate,Advanced',
             'students' => 'required|integer|min:0',
         ]);

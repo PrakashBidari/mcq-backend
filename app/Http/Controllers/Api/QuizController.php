@@ -5,29 +5,54 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Advertisement;
 use App\Models\Blog;
+use App\Models\BlogCategory;
 use App\Models\Book;
+use App\Models\BookCategory;
 use App\Models\Category;
 use App\Models\Faq;
 use App\Models\Question;
 use App\Models\QuestionSet;
 use App\Models\UserQuizAttempt;
+use App\Services\AccessControlService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class QuizController extends Controller
 {
-    // Get all categories with question set counts
+    public function __construct(private AccessControlService $accessControl)
+    {
+    }
+
+    // Get top-level categories (exam types, e.g. SSW / JLPT) with question set counts
     public function getCategories()
     {
-        $categories = Category::withCount([
-            'questionSets',
-            'questionSets as free_sets_count' => function ($query) {
-                $query->where('is_paid', false)->where('is_active', true);
-            },
-            'questionSets as paid_sets_count' => function ($query) {
-                $query->where('is_paid', true)->where('is_active', true);
-            },
-        ])->get();
+        $categories = Category::whereNull('parent_id')
+            ->withCount('children')
+            ->get()
+            ->each(function ($category) {
+                $category->has_children = $category->children_count > 0;
+            });
+
+        // Question sets live on leaf subcategories, not necessarily directly on the
+        // top-level category (e.g. SSW/JLPT have 0 sets of their own - their sets all
+        // belong to their subcategories) - so a parent's displayed counts must roll up
+        // its children's counts too, not just count $category->questionSets directly.
+        $counts = QuestionSet::where('is_active', true)
+            ->selectRaw('category_id, COUNT(*) as total, SUM(is_paid = 0) as free, SUM(is_paid = 1) as paid')
+            ->groupBy('category_id')
+            ->get()
+            ->keyBy('category_id');
+
+        $childrenByParent = Category::whereNotNull('parent_id')->get(['id', 'parent_id'])->groupBy('parent_id');
+
+        $categories->each(function ($category) use ($counts, $childrenByParent) {
+            $categoryIds = collect([$category->id])
+                ->merge($childrenByParent->get($category->id, collect())->pluck('id'));
+
+            $category->question_sets_count = (int) $categoryIds->sum(fn ($id) => $counts->get($id)?->total ?? 0);
+            $category->free_sets_count     = (int) $categoryIds->sum(fn ($id) => $counts->get($id)?->free ?? 0);
+            $category->paid_sets_count     = (int) $categoryIds->sum(fn ($id) => $counts->get($id)?->paid ?? 0);
+        });
 
         return response()->json([
             'success' => true,
@@ -35,28 +60,46 @@ class QuizController extends Controller
         ]);
     }
 
-    // Get question sets by category
+    // Get subcategories of a top-level category (e.g. SSW -> Hotel/Restaurant/...)
+    public function getSubcategories($categoryId)
+    {
+        $category = Category::findOrFail($categoryId);
+
+        $subcategories = Category::where('parent_id', $categoryId)
+            ->withCount([
+                'questionSets',
+                'questionSets as free_sets_count' => function ($query) {
+                    $query->where('is_paid', false)->where('is_active', true);
+                },
+                'questionSets as paid_sets_count' => function ($query) {
+                    $query->where('is_paid', true)->where('is_active', true);
+                },
+            ])
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'category'      => $category,
+                'subcategories' => $subcategories,
+            ],
+        ]);
+    }
+
+    // Get standalone (non-packaged) question sets by category/subcategory
     public function getQuestionSetsByCategory($categoryId)
     {
         $category = Category::with(['questionSets' => function ($query) {
-            $query->where('is_active', true)->withCount('questions');
+            $query->where('is_active', true)
+                ->whereNull('package_id')
+                ->with(['priceTier', 'category'])
+                ->withCount('questions');
         }])->findOrFail($categoryId);
 
         $user = auth('sanctum')->user();
 
-        // Add is_paid, price and ownership to each question set
         $questionSets = $category->questionSets->map(function ($set) use ($user) {
-            return [
-                'id'              => $set->id,
-                'name'            => $set->name,
-                'description'     => $set->description,
-                'is_active'       => $set->is_active,
-                'is_paid'         => (bool) $set->is_paid,
-                'price'           => $set->is_paid ? (float) $set->price : null,
-                'price_tier'      => $set->is_paid ? $set->price_tier : null,
-                'is_owned'        => $set->isOwnedBy($user?->id),
-                'questions_count' => $set->questions_count,
-            ];
+            return $this->presentQuestionSet($set, $user);
         });
 
         return response()->json([
@@ -78,16 +121,19 @@ class QuizController extends Controller
                     ->orderByRaw('questions.position IS NULL, questions.position ASC, questions.id DESC');
             },
             'category',
+            'package',
         ])->where('is_active', true)->findOrFail($setId);
 
         $user = auth('sanctum')->user();
 
-        if (!$questionSet->isOwnedBy($user?->id)) {
+        $access = $this->accessControl->resolveAccess($user, $questionSet);
+
+        if (!$access['allowed']) {
             return response()->json([
                 'success' => false,
-                'reason'  => 'purchase_required',
+                'reason'  => $access['reason'],
                 'message' => 'This question set must be purchased before it can be accessed.',
-                'data'    => $this->purchaseRequiredPayload($questionSet),
+                'data'    => $access['paywall'] ?? $this->purchaseRequiredPayload($questionSet),
             ], 403);
         }
 
@@ -134,6 +180,31 @@ class QuizController extends Controller
         ];
     }
 
+    private function presentQuestionSet(QuestionSet $set, $user): array
+    {
+        $priceTier = $set->priceTier;
+        $access = $this->accessControl->previewAccess($user, $set);
+
+        return [
+            'id'              => $set->id,
+            'name'            => $set->name,
+            'description'     => $set->description ?? null,
+            'category'        => $set->category->name ?? null,
+            'is_active'       => $set->is_active,
+            'is_paid'         => (bool) $set->is_paid,
+            'price'           => $set->is_paid ? (float) ($priceTier->amount ?? $set->price) : null,
+            'price_tier'      => $set->is_paid ? ($priceTier->tier_key ?? $set->price_tier) : null,
+            'trial_enabled'   => (bool) $set->trial_enabled,
+            'trial_type'      => $set->trial_type,
+            'trial_value'     => $set->trial_value,
+            // "owned" excludes an active trial - a trial-only user still needs the
+            // separate Free Trial button, not the post-purchase Start button.
+            'is_owned'        => $access['allowed'] && $access['reason'] !== 'trial',
+            'trial_available' => $access['reason'] === 'trial',
+            'questions_count' => $set->questions_count ?? $set->questions()->count(),
+        ];
+    }
+
     // public function getQuestionSet($setId)
     // {
     //     $questionSet = QuestionSet::with(['questions.options', 'category'])
@@ -168,7 +239,11 @@ class QuizController extends Controller
     //     ]);
     // }
 
-    // Get random questions from all sets in a category
+    // Get random questions from the FREE, standalone (non-packaged) sets in a category -
+    // this is the "Free Question Set Quiz" card, deliberately scoped to structurally free
+    // content only (not owned/trial/subscription-unlocked paid sets), so no auth or
+    // per-user access resolution is needed here - matches the same scope
+    // (is_paid = false, no package_id) as the single-sets list the count is shown against.
     public function getRandomQuestionsFromCategory(Request $request, $categoryId)
     {
         $validator = Validator::make($request->all(), [
@@ -184,13 +259,13 @@ class QuizController extends Controller
         }
 
         $category = Category::findOrFail($categoryId);
-        $user = auth('sanctum')->user();
 
         $questionIds = QuestionSet::where('category_id', $categoryId)
             ->where('is_active', true)
+            ->where('is_paid', false)
+            ->whereNull('package_id')
             ->with('questions')
             ->get()
-            ->filter(fn ($set) => $set->isOwnedBy($user?->id))
             ->pluck('questions')
             ->flatten()
             ->pluck('id')
@@ -311,7 +386,8 @@ class QuizController extends Controller
 
     public function getBlogs()
     {
-        $blogs = Blog::where('is_active', true)
+        $blogs = Blog::with('blogCategory')
+            ->where('is_active', true)
             ->orderBy('published_at', 'desc')
             ->get()
             ->map(function ($blog) {
@@ -324,7 +400,8 @@ class QuizController extends Controller
                     'image'       => $blog->image
                         ? url('storage/' . $blog->image)
                         : $blog->cover_url,
-                    'category'    => $blog->category,
+                    'category'    => $blog->blogCategory->name ?? $blog->category,
+                    'categoryId'  => $blog->blog_category_id,
                     'author'      => $blog->author,
                     'readTime'    => $blog->read_time,
                     'likes'       => $blog->likes,
@@ -392,24 +469,30 @@ class QuizController extends Controller
 
         $user = auth('sanctum')->user();
 
-        $sets = QuestionSet::with('category')
+        $sets = QuestionSet::with(['category', 'priceTier', 'package'])
             ->where('is_active', true)
+            ->whereNull('package_id')
             ->where('name', 'LIKE', "%{$query}%")
             ->limit(10)
             ->get()
-            ->map(function ($set) use ($user) {
-                return [
-                    'id'              => $set->id,
-                    'name'            => $set->name,
-                    'category'        => $set->category->name,
-                    'is_paid'         => (bool) $set->is_paid,
-                    'price'           => $set->is_paid ? (float) $set->price : null,
-                    'price_tier'      => $set->is_paid ? $set->price_tier : null,
-                    'is_owned'        => $set->isOwnedBy($user?->id),
-                    'questions_count' => $set->questions()->count(),
-                ];
-            });
+            ->map(fn ($set) => $this->presentQuestionSet($set, $user));
 
         return response()->json(['success' => true, 'data' => $sets]);
+    }
+
+    public function getBlogCategories()
+    {
+        return response()->json([
+            'success' => true,
+            'data' => BlogCategory::orderBy('name')->get(),
+        ]);
+    }
+
+    public function getBookCategories()
+    {
+        return response()->json([
+            'success' => true,
+            'data' => BookCategory::orderBy('name')->get(),
+        ]);
     }
 }

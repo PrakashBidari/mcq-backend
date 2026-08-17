@@ -118,38 +118,90 @@
                     </a>
                 @endif
 
-
+                @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('read', 'Package'))
+                    <!-- Question Set Packages -->
+                    <a href="{{ route('packages.index') }}"
+                        class="{{ request()->routeIs('packages.*') ? 'bg-purple-600' : 'hover:bg-purple-600' }} flex items-center rounded-lg px-4 py-3 transition">
+                        <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4">
+                            </path>
+                        </svg>
+                        Question Set Packages
+                    </a>
+                @endif
 
                 <!-- Divider -->
                 <div class="my-4 border-t border-purple-600"></div>
 
                 <!-- Books -->
-                @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('read', 'Book'))
-                    <a href="{{ route('books.index') }}"
-                        class="{{ request()->routeIs('books.*') ? 'bg-purple-600' : 'hover:bg-purple-600' }} flex items-center rounded-lg px-4 py-3 transition">
-                        <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253">
-                            </path>
-                        </svg>
-                        {{-- <span class="font-medium">Books</span> --}}
-                        Books
-                    </a>
+                @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('read', 'Book') || auth()->user()->hasPermission('read', 'BookCategory'))
+                    <div x-data="{ open: {{ request()->routeIs('books.*') || request()->routeIs('book-categories.*') ? 'true' : 'false' }} }" class="space-y-1">
+                        <button @click="open = !open"
+                            class="{{ request()->routeIs('books.*') || request()->routeIs('book-categories.*') ? 'bg-purple-600' : 'hover:bg-purple-600' }} flex w-full items-center justify-between rounded-lg px-4 py-3 transition">
+                            <div class="flex items-center">
+                                <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253">
+                                    </path>
+                                </svg>
+                                Books
+                            </div>
+                            <svg :class="open ? 'rotate-180' : ''" class="h-4 w-4 transition-transform duration-200"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                        <div x-show="open" x-transition class="ml-8 space-y-1">
+                            @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('read', 'Book'))
+                                <a href="{{ route('books.index') }}"
+                                    class="{{ request()->routeIs('books.*') ? 'bg-purple-600' : 'hover:bg-purple-600/50' }} flex items-center rounded-lg px-4 py-2 text-sm transition">
+                                    Books
+                                </a>
+                            @endif
+                            @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('read', 'BookCategory'))
+                                <a href="{{ route('book-categories.index') }}"
+                                    class="{{ request()->routeIs('book-categories.*') ? 'bg-purple-600' : 'hover:bg-purple-600/50' }} flex items-center rounded-lg px-4 py-2 text-sm transition">
+                                    Book Categories
+                                </a>
+                            @endif
+                        </div>
+                    </div>
                 @endif
 
-
                 <!-- Blogs -->
-                @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('read', 'Blog'))
-                    <a href="{{ route('blogs.index') }}"
-                        class="{{ request()->routeIs('blogs.*') ? 'bg-purple-600' : 'hover:bg-purple-600' }} flex items-center gap-3 rounded-lg px-4 py-3 transition">
-                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z">
-                            </path>
-                        </svg>
-                        Blogs
-                        {{-- <span class="font-medium">Blogs</span> --}}
-                    </a>
+                @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('read', 'Blog') || auth()->user()->hasPermission('read', 'BlogCategory'))
+                    <div x-data="{ open: {{ request()->routeIs('blogs.*') || request()->routeIs('blog-categories.*') ? 'true' : 'false' }} }" class="space-y-1">
+                        <button @click="open = !open"
+                            class="{{ request()->routeIs('blogs.*') || request()->routeIs('blog-categories.*') ? 'bg-purple-600' : 'hover:bg-purple-600' }} flex w-full items-center justify-between rounded-lg px-4 py-3 transition">
+                            <div class="flex items-center">
+                                <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z">
+                                    </path>
+                                </svg>
+                                Blogs
+                            </div>
+                            <svg :class="open ? 'rotate-180' : ''" class="h-4 w-4 transition-transform duration-200"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                        <div x-show="open" x-transition class="ml-8 space-y-1">
+                            @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('read', 'Blog'))
+                                <a href="{{ route('blogs.index') }}"
+                                    class="{{ request()->routeIs('blogs.*') ? 'bg-purple-600' : 'hover:bg-purple-600/50' }} flex items-center rounded-lg px-4 py-2 text-sm transition">
+                                    Blogs
+                                </a>
+                            @endif
+                            @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('read', 'BlogCategory'))
+                                <a href="{{ route('blog-categories.index') }}"
+                                    class="{{ request()->routeIs('blog-categories.*') ? 'bg-purple-600' : 'hover:bg-purple-600/50' }} flex items-center rounded-lg px-4 py-2 text-sm transition">
+                                    Blog Categories
+                                </a>
+                            @endif
+                        </div>
+                    </div>
                 @endif
 
                 <!-- FAQs -->
@@ -177,6 +229,67 @@
                         </svg>
                         Advertise
                     </a>
+                @endif
+
+                <!-- Payments -->
+                @php
+                    $paymentModels = ['PriceTier', 'AttemptPack', 'SubscriptionPlan', 'Purchase'];
+                    $canSeePayments = auth()->user()->isAdmin() || collect($paymentModels)->contains(fn($m) => auth()->user()->hasPermission('read', $m));
+                    $paymentRoutes = ['price-tiers.*', 'attempt-packs.*', 'subscription-plans.*', 'purchases.*', 'subscribers.*', 'revenue.*'];
+                    $onPaymentsPage = collect($paymentRoutes)->contains(fn($r) => request()->routeIs($r));
+                @endphp
+                @if ($canSeePayments)
+                    <div x-data="{ open: {{ $onPaymentsPage ? 'true' : 'false' }} }" class="space-y-1">
+                        <button @click="open = !open"
+                            class="{{ $onPaymentsPage ? 'bg-purple-600' : 'hover:bg-purple-600' }} flex w-full items-center justify-between rounded-lg px-4 py-3 transition">
+                            <div class="flex items-center">
+                                <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
+                                    </path>
+                                </svg>
+                                Payments
+                            </div>
+                            <svg :class="open ? 'rotate-180' : ''" class="h-4 w-4 transition-transform duration-200"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                        <div x-show="open" x-transition class="ml-8 space-y-1">
+                            @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('read', 'PriceTier'))
+                                <a href="{{ route('price-tiers.index') }}"
+                                    class="{{ request()->routeIs('price-tiers.*') ? 'bg-purple-600' : 'hover:bg-purple-600/50' }} flex items-center rounded-lg px-4 py-2 text-sm transition">
+                                    Price Tiers
+                                </a>
+                            @endif
+                            @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('read', 'AttemptPack'))
+                                <a href="{{ route('attempt-packs.index') }}"
+                                    class="{{ request()->routeIs('attempt-packs.*') ? 'bg-purple-600' : 'hover:bg-purple-600/50' }} flex items-center rounded-lg px-4 py-2 text-sm transition">
+                                    Attempt Packs
+                                </a>
+                            @endif
+                            @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('read', 'SubscriptionPlan'))
+                                <a href="{{ route('subscription-plans.index') }}"
+                                    class="{{ request()->routeIs('subscription-plans.*') ? 'bg-purple-600' : 'hover:bg-purple-600/50' }} flex items-center rounded-lg px-4 py-2 text-sm transition">
+                                    Subscription Plans
+                                </a>
+                            @endif
+                            @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('read', 'Purchase'))
+                                <a href="{{ route('purchases.index') }}"
+                                    class="{{ request()->routeIs('purchases.*') ? 'bg-purple-600' : 'hover:bg-purple-600/50' }} flex items-center rounded-lg px-4 py-2 text-sm transition">
+                                    Purchases
+                                </a>
+                                <a href="{{ route('subscribers.index') }}"
+                                    class="{{ request()->routeIs('subscribers.*') ? 'bg-purple-600' : 'hover:bg-purple-600/50' }} flex items-center rounded-lg px-4 py-2 text-sm transition">
+                                    Subscribers
+                                </a>
+                                <a href="{{ route('revenue.index') }}"
+                                    class="{{ request()->routeIs('revenue.*') ? 'bg-purple-600' : 'hover:bg-purple-600/50' }} flex items-center rounded-lg px-4 py-2 text-sm transition">
+                                    Revenue
+                                </a>
+                            @endif
+                        </div>
+                    </div>
                 @endif
 
                 <!-- Contact Us -->

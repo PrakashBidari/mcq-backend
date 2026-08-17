@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Blog;
+use App\Models\BlogCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -10,11 +11,11 @@ class BlogController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Blog::query();
+        $query = Blog::with('blogCategory');
 
         // Filter by category
         if ($request->filled('category')) {
-            $query->where('category', $request->category);
+            $query->where('blog_category_id', $request->category);
         }
 
         // Search
@@ -28,9 +29,7 @@ class BlogController extends Controller
         }
 
         $blogs = $query->orderBy('created_at', 'desc')->get();
-
-        // Get unique categories
-        $categories = Blog::distinct()->pluck('category');
+        $categories = BlogCategory::orderBy('name')->get();
 
         return view('blogs.index', compact('blogs', 'categories'));
     }
@@ -42,12 +41,13 @@ class BlogController extends Controller
             return redirect()->route('blogs.index')->with('error', 'You do not have permission to create blogs.');
         }
 
-        return view('blogs.create');
+        $categories = BlogCategory::orderBy('name')->get();
+
+        return view('blogs.create', compact('categories'));
     }
 
     public function store(Request $request)
     {
-        // dd($request->all());
         // Check permission
         if (!auth()->user()->isAdmin() && !auth()->user()->hasPermission('create', 'Blog')) {
             return redirect()->route('blogs.index')->with('error', 'You do not have permission to create blogs.');
@@ -59,10 +59,12 @@ class BlogController extends Controller
             'content' => 'required|string',
             'cover_url' => 'nullable|url',
             'image' => 'nullable|image|mimes:jpeg,jpg,png,gif,webp|max:2048',
-            'category' => 'required|string|max:100',
+            'blog_category_id' => 'required|exists:blog_categories,id',
             'author' => 'required|string|max:100',
             'read_time' => 'required|string|max:20',
         ]);
+
+        $validated['category'] = BlogCategory::find($validated['blog_category_id'])->name;
 
         // Generate slug
         $validated['slug'] = Str::slug($validated['title']);
@@ -90,8 +92,9 @@ class BlogController extends Controller
         }
 
         $blog = Blog::findOrFail($id);
+        $categories = BlogCategory::orderBy('name')->get();
 
-        return view('blogs.edit', compact('blog'));
+        return view('blogs.edit', compact('blog', 'categories'));
     }
 
     public function update(Request $request, string $id)
@@ -109,10 +112,12 @@ class BlogController extends Controller
             'content' => 'required|string',
             'cover_url' => 'nullable|url',
             'image' => 'nullable|image|mimes:jpeg,jpg,png,gif,webp|max:2048',
-            'category' => 'required|string|max:100',
+            'blog_category_id' => 'required|exists:blog_categories,id',
             'author' => 'required|string|max:100',
             'read_time' => 'required|string|max:20',
         ]);
+
+        $validated['category'] = BlogCategory::find($validated['blog_category_id'])->name;
 
         // Update slug if title changed
         if ($validated['title'] !== $blog->title) {

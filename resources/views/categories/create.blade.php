@@ -68,6 +68,26 @@
                     <p class="mt-1 text-xs text-gray-500">Auto-generated from name. You can edit it if needed.</p>
                 </div>
 
+                <!-- Parent Category -->
+                <div>
+                    <label for="parent_id" class="block text-sm font-semibold text-gray-700 mb-2">
+                        Parent Category
+                    </label>
+                    <select name="parent_id" id="parent_id"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <option value="">None — this is a top-level category (e.g. SSW, JLPT)</option>
+                        @foreach ($parentCategories as $parent)
+                            <option value="{{ $parent->id }}" {{ old('parent_id') == $parent->id ? 'selected' : '' }}>
+                                {{ $parent->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Leave empty for a top-level category. Choose a parent to make this a subcategory (e.g. Hotel under SSW).</p>
+                    @error('parent_id')
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
                 <!-- Description -->
                 <div>
                     <label for="description" class="block text-sm font-semibold text-gray-700 mb-2">

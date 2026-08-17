@@ -88,6 +88,7 @@
                         <th class="whitespace-nowrap text-left">Question</th>
                         <th class="whitespace-nowrap text-left">Position</th>
                         <th class="whitespace-nowrap text-left">Category</th>
+                        <th class="whitespace-nowrap text-left">Subcategory</th>
                         <th class="whitespace-nowrap text-left">Question Sets</th>
                         <th class="whitespace-nowrap text-left">Difficulty</th>
                         <th class="whitespace-nowrap text-left">Correct Answer</th>
@@ -119,19 +120,39 @@
                                     <span class="text-xs text-gray-400">—</span>
                                 @endif
                             </td>
+                            @php
+                                // Categories (and subcategories) of this question's sets, deduped
+                                $setCategories = $question->questionSets->pluck('category')->filter()->unique('id');
+                                $topCategories = $setCategories
+                                    ->map(fn ($c) => $c->isSubcategory() ? $c->parent : $c)
+                                    ->filter()
+                                    ->unique('id');
+                                $subCategories = $setCategories->filter(fn ($c) => $c->isSubcategory())->unique('id');
+                            @endphp
                             <td class="py-4">
-                                @php
-                                    // Get unique categories from question sets
-                                    $categories = $question->questionSets->pluck('category')->unique();
-                                @endphp
                                 <div class="flex flex-col gap-1">
-                                    @foreach ($categories as $category)
+                                    @forelse ($topCategories as $category)
                                         <div class="flex items-center gap-2 whitespace-nowrap">
                                             <div class="h-3 w-3 rounded-full"
                                                 style="background-color: {{ $category->color }};"></div>
                                             <span class="text-sm text-gray-700">{{ $category->name }}</span>
                                         </div>
-                                    @endforeach
+                                    @empty
+                                        <span class="text-xs text-gray-400">—</span>
+                                    @endforelse
+                                </div>
+                            </td>
+                            <td class="py-4">
+                                <div class="flex flex-col gap-1">
+                                    @forelse ($subCategories as $category)
+                                        <div class="flex items-center gap-2 whitespace-nowrap">
+                                            <div class="h-2 w-2 rounded-full"
+                                                style="background-color: {{ $category->color }};"></div>
+                                            <span class="text-sm text-gray-700">{{ $category->name }}</span>
+                                        </div>
+                                    @empty
+                                        <span class="text-xs text-gray-400">—</span>
+                                    @endforelse
                                 </div>
                             </td>
                             <td class="py-4">
@@ -213,11 +234,11 @@
             $('#questionsTable').DataTable({
                 pageLength: 4,
                 order: [
-                    [5, 'desc']
+                    [6, 'desc']
                 ], // Sort by created date
                 columnDefs: [{
                         orderable: false,
-                        targets: [6]
+                        targets: [7]
                     } // Disable sorting on Actions
                 ],
                 language: {

@@ -10,6 +10,7 @@ class Category extends Model
     use HasFactory;
 
     protected $fillable = [
+        'parent_id',
         'name',
         'slug',
         'description',
@@ -20,6 +21,21 @@ class Category extends Model
     public function questionSets()
     {
         return $this->hasMany(QuestionSet::class);
+    }
+
+    public function parent()
+    {
+        return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    public function children()
+    {
+        return $this->hasMany(self::class, 'parent_id');
+    }
+
+    public function isSubcategory(): bool
+    {
+        return !is_null($this->parent_id);
     }
 
     // Get all questions through question sets

@@ -1,7 +1,10 @@
 <?php
 
 use App\Http\Controllers\AdvertisementController;
+use App\Http\Controllers\AttemptPackController;
+use App\Http\Controllers\BlogCategoryController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\BookCategoryController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CategoryManagementController;
@@ -10,8 +13,12 @@ use App\Http\Controllers\ContactMessageController;
 use App\Http\Controllers\ContactSettingController;
 use App\Http\Controllers\FaqController;
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\PriceTierController;
+use App\Http\Controllers\PurchaseAdminController;
 use App\Http\Controllers\QuestionController;
 use App\Http\Controllers\QuestionSetController;
+use App\Http\Controllers\QuestionSetPackageController;
+use App\Http\Controllers\SubscriptionPlanController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
@@ -120,10 +127,27 @@ Route::middleware(['auth', 'dashboard'])->prefix('dashboard')->group(function ()
     Route::resource('questions', QuestionController::class);
 
     Route::resource('books', BookController::class);
+    Route::resource('book-categories', BookCategoryController::class);
 
     Route::resource('blogs', BlogController::class);
+    Route::resource('blog-categories', BlogCategoryController::class);
 
     Route::resource('faqs', FaqController::class);
+
+    // Question Set Packages
+    Route::resource('packages', QuestionSetPackageController::class);
+    Route::get('packages-available-sets', [QuestionSetPackageController::class, 'availableQuestionSets'])->name('packages.available-sets');
+
+    // Dynamic payment catalog
+    Route::resource('price-tiers', PriceTierController::class)->except('destroy');
+    Route::patch('price-tiers/{price_tier}/toggle', [PriceTierController::class, 'toggle'])->name('price-tiers.toggle');
+    Route::resource('attempt-packs', AttemptPackController::class);
+    Route::resource('subscription-plans', SubscriptionPlanController::class);
+
+    // Purchases / subscribers / revenue (read-only)
+    Route::get('purchases', [PurchaseAdminController::class, 'index'])->name('purchases.index');
+    Route::get('subscribers', [PurchaseAdminController::class, 'subscribers'])->name('subscribers.index');
+    Route::get('revenue', [PurchaseAdminController::class, 'revenue'])->name('revenue.index');
 
     // Advertisements — edit & active/inactive toggle only (no create/delete)
     Route::get('advertisements', [AdvertisementController::class, 'index'])->name('advertisements.index');

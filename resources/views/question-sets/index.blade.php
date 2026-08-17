@@ -32,6 +32,7 @@
                         <th class="text-left">Name</th>
                         <th class="text-left">Time Limit</th>
                         <th class="text-left">Category</th>
+                        <th class="text-left">Subcategory</th>
                         <th class="text-left">Description</th>
                         <th class="text-left">Questions</th>
                         <th class="text-left">Price</th>
@@ -60,12 +61,27 @@
                                     <span class="text-xs text-gray-400">No limit</span>
                                 @endif
                             </td>
+                            @php
+                                $topCategory = $set->category->isSubcategory() ? $set->category->parent : $set->category;
+                                $subCategory = $set->category->isSubcategory() ? $set->category : null;
+                            @endphp
                             <td class="py-4">
                                 <div class="flex items-center gap-2">
                                     <div class="h-3 w-3 rounded-full"
-                                        style="background-color: {{ $set->category->color }};"></div>
-                                    <span class="text-gray-700">{{ $set->category->name }}</span>
+                                        style="background-color: {{ $topCategory->color }};"></div>
+                                    <span class="text-gray-700">{{ $topCategory->name }}</span>
                                 </div>
+                            </td>
+                            <td class="py-4">
+                                @if ($subCategory)
+                                    <div class="flex items-center gap-2">
+                                        <div class="h-2 w-2 rounded-full"
+                                            style="background-color: {{ $subCategory->color }};"></div>
+                                        <span class="text-gray-700">{{ $subCategory->name }}</span>
+                                    </div>
+                                @else
+                                    <span class="text-xs text-gray-400">—</span>
+                                @endif
                             </td>
                             <td class="py-4 text-sm text-gray-600">
                                 {{ Str::limit($set->description, 60) }}
@@ -84,7 +100,10 @@
                                             Paid
                                         </span>
                                         <span
-                                            class="text-sm font-bold text-gray-700">&yen;{{ number_format($set->price) }}</span>
+                                            class="text-sm font-bold text-gray-700">&yen;{{ number_format($set->price, 2) }}</span>
+                                        @if ($set->access_type)
+                                            <span class="text-xs text-gray-500">{{ $set->access_value }} {{ $set->access_type }}</span>
+                                        @endif
                                     </div>
                                 @else
                                     <span
@@ -155,11 +174,11 @@
             $('#questionSetsTable').DataTable({
                 pageLength: 10,
                 order: [
-                    [6, 'desc']
+                    [7, 'desc']
                 ],
                 columnDefs: [{
                     orderable: false,
-                    targets: [8]
+                    targets: [9]
                 }],
                 language: {
                     search: "Search question sets:",

@@ -12,7 +12,7 @@ class QuestionController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Question::with(['options', 'questionSets']);
+        $query = Question::with(['options', 'questionSets.category.parent']);
 
         // Filter by category (through question sets)
         if ($request->filled('category')) {

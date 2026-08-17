@@ -11,25 +11,50 @@ class QuestionSet extends Model
 
     protected $fillable = [
         'category_id',
+        'package_id',
         'name',
         'description',
         'is_active',
         'is_paid',
         'price',
         'price_tier',
+        'price_tier_id',
+        'trial_enabled',
+        'trial_type',
+        'trial_value',
+        'access_type',
+        'access_value',
         'time_limit',
     ];
 
     protected $casts = [
-        'is_active'  => 'boolean',
-        'is_paid'    => 'boolean',
-        'price'      => 'decimal:2',
-        'time_limit' => 'integer',
+        'is_active'     => 'boolean',
+        'is_paid'       => 'boolean',
+        'price'         => 'decimal:2',
+        'trial_enabled' => 'boolean',
+        'trial_value'   => 'integer',
+        'access_value'  => 'integer',
+        'time_limit'    => 'integer',
     ];
 
     public function category()
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function package()
+    {
+        return $this->belongsTo(QuestionSetPackage::class, 'package_id');
+    }
+
+    public function priceTier()
+    {
+        return $this->belongsTo(PriceTier::class);
+    }
+
+    public function isPackaged(): bool
+    {
+        return !is_null($this->package_id);
     }
 
     public function questions()

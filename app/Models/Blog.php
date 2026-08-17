@@ -17,6 +17,7 @@ class Blog extends Model
         'image',
         'cover_url',
         'category',
+        'blog_category_id',
         'author',
         'read_time',
         'likes',
@@ -31,4 +32,9 @@ class Blog extends Model
         'is_active' => 'boolean',
         'published_at' => 'datetime',
     ];
+
+    public function blogCategory()
+    {
+        return $this->belongsTo(BlogCategory::class);
+    }
 }

@@ -115,21 +115,20 @@
                 <div class="grid grid-cols-2 gap-4">
                     <!-- Category -->
                     <div>
-                        <label for="category" class="mb-2 block text-sm font-semibold text-gray-700">
+                        <label for="blog_category_id" class="mb-2 block text-sm font-semibold text-gray-700">
                             Category <span class="text-red-500">*</span>
                         </label>
-                        <input type="text" name="category" id="category" value="{{ old('category', $blog->category) }}"
-                            required
-                            class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500"
-                            placeholder="e.g., Education, Technology, Health" list="category-suggestions">
-                        <datalist id="category-suggestions">
-                            <option value="Education">
-                            <option value="Technology">
-                            <option value="Health">
-                            <option value="Business">
-                            <option value="Lifestyle">
-                        </datalist>
-                        @error('category')
+                        <select name="blog_category_id" id="blog_category_id" required
+                            class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500">
+                            <option value="">Select a category</option>
+                            @foreach ($categories as $category)
+                                <option value="{{ $category->id }}" {{ old('blog_category_id', $blog->blog_category_id) == $category->id ? 'selected' : '' }}>
+                                    {{ $category->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">Manage categories under Blog &rarr; Blog Categories.</p>
+                        @error('blog_category_id')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
                     </div>

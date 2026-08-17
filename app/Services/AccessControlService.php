@@ -1,0 +1,142 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\AttemptPack;
+use App\Models\Purchase;
+use App\Models\QuestionSet;
+use App\Models\QuestionSetPackage;
+use App\Models\SubscriptionPlan;
+use App\Models\User;
+use App\Models\UserSubscription;
+
+class AccessControlService
+{
+    public function __construct(
+        private TrialService $trialService,
+        private AttemptWalletService $walletService,
+    ) {
+    }
+
+    /**
+     * Resolve access AND consume the trial-use/wallet-attempt it was granted through.
+     * Use this only at the moment a user actually starts a quiz session - never in a
+     * listing/badge context, since it has side effects.
+     */
+    public function resolveAccess(?User $user, QuestionSet|QuestionSetPackage $item): array
+    {
+        return $this->evaluate($user, $item, consume: true);
+    }
+
+    /**
+     * Read-only check for listings/badges (e.g. "is this owned/on trial?") - same
+     * priority logic as resolveAccess() but never consumes a trial use or wallet attempt.
+     */
+    public function previewAccess(?User $user, QuestionSet|QuestionSetPackage $item): array
+    {
+        return $this->evaluate($user, $item, consume: false);
+    }
+
+    /**
+     * Priority: free -> trial -> direct ownership -> active subscription -> attempt
+     * wallet -> denied (with a paywall payload describing how to buy access).
+     */
+    private function evaluate(?User $user, QuestionSet|QuestionSetPackage $item, bool $consume): array
+    {
+        // A question set that belongs to a package is gated entirely by the package -
+        // its own is_paid/price fields are unused once it's package-exclusive.
+        if ($item instanceof QuestionSet && $item->package_id) {
+            return $this->evaluate($user, $item->package ?? $item->package()->firstOrFail(), $consume);
+        }
+
+        if (!$item->is_paid) {
+            return ['allowed' => true, 'reason' => 'free'];
+        }
+
+        if (!$user) {
+            return [
+                'allowed' => false,
+                'reason' => 'auth_required',
+                'paywall' => $this->paywallPayload($item),
+            ];
+        }
+
+        if ($this->trialService->hasAvailableTrial($user, $item)) {
+            if ($consume) {
+                $this->trialService->consumeTrial($user, $item);
+            }
+            return ['allowed' => true, 'reason' => 'trial'];
+        }
+
+        $activePurchase = $item instanceof QuestionSetPackage
+            ? Purchase::activePackagePurchase($user->id, $item->id)
+            : Purchase::activeQuestionSetPurchase($user->id, $item->id);
+
+        if ($activePurchase) {
+            if ($consume && $activePurchase->access_type === 'attempts') {
+                $activePurchase->increment('attempts_used');
+            }
+            return ['allowed' => true, 'reason' => 'owned'];
+        }
+
+        if (UserSubscription::where('user_id', $user->id)->active()->exists()) {
+            return ['allowed' => true, 'reason' => 'subscription'];
+        }
+
+        if ($this->walletService->balance($user->id) > 0) {
+            if ($consume) {
+                $this->walletService->debit($user, 1, 'consume', $item);
+            }
+            return ['allowed' => true, 'reason' => $consume ? 'wallet' : 'wallet_available'];
+        }
+
+        return [
+            'allowed' => false,
+            'reason' => 'purchase_required',
+            'paywall' => $this->paywallPayload($item),
+        ];
+    }
+
+    public function paywallPayload(QuestionSet|QuestionSetPackage $item): array
+    {
+        $priceTier = $item->priceTier;
+
+        return [
+            'price_tier' => $priceTier ? [
+                'tier_key' => $priceTier->tier_key,
+                'amount' => (float) $priceTier->amount,
+                'currency' => $priceTier->currency,
+                'ios_product_id' => $priceTier->iosProductId(),
+                'android_product_id' => $priceTier->androidProductId(),
+                'access_type' => $item->access_type,
+                'access_value' => $item->access_value,
+            ] : null,
+            'attempt_packs' => AttemptPack::where('is_active', true)
+                ->orderBy('sort_order')
+                ->get()
+                ->map(fn (AttemptPack $pack) => [
+                    'id' => $pack->id,
+                    'name' => $pack->name,
+                    'attempts_count' => $pack->attempts_count,
+                    'price' => (float) $pack->price,
+                    'currency' => $pack->currency,
+                    'product_key' => $pack->product_key,
+                    'ios_product_id' => $pack->iosProductId(),
+                    'android_product_id' => $pack->androidProductId(),
+                ])->values(),
+            'subscription_plans' => SubscriptionPlan::where('is_active', true)
+                ->orderBy('sort_order')
+                ->get()
+                ->map(fn (SubscriptionPlan $plan) => [
+                    'id' => $plan->id,
+                    'name' => $plan->name,
+                    'duration_days' => $plan->duration_days,
+                    'price' => (float) $plan->price,
+                    'currency' => $plan->currency,
+                    'product_key' => $plan->product_key,
+                    'ios_product_id' => $plan->iosProductId(),
+                    'android_product_id' => $plan->androidProductId(),
+                ])->values(),
+        ];
+    }
+}

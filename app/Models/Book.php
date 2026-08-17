@@ -34,6 +34,6 @@ class Book extends Model
     // Relationship
     public function category()
     {
-        return $this->belongsTo(Category::class);
+        return $this->belongsTo(BookCategory::class, 'category_id');
     }
 }
