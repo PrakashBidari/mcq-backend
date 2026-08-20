@@ -23,23 +23,40 @@
             <form action="{{ route('question-sets.store') }}" method="POST" class="space-y-6 p-6">
                 @csrf
 
-                <!-- Category -->
-                <div>
-                    <label for="category_id" class="mb-2 block text-sm font-semibold text-gray-700">
-                        Category <span class="text-red-500">*</span>
-                    </label>
-                    <select name="category_id" id="category_id" required
-                        class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500">
-                        <option value="">Select a category</option>
-                        @foreach ($categories as $category)
-                            <option value="{{ $category->id }}" {{ old('category_id') == $category->id ? 'selected' : '' }}>
-                                {{ $category->parent_id ? '— ' : '' }}{{ $category->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                    @error('category_id')
-                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                    @enderror
+                <!-- Category & Subcategory -->
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2"
+                    x-data="categorySelector({{ $categories->toJson() }}, {{ $selectedCategoryId ?? 'null' }}, {{ $selectedSubcategoryId ?? 'null' }})">
+                    <div>
+                        <label for="category_id" class="mb-2 block text-sm font-semibold text-gray-700">
+                            Category <span class="text-red-500">*</span>
+                        </label>
+                        <select id="category_id" x-model="categoryId" @change="onCategoryChange()" required
+                            class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500">
+                            <option value="">Select a category</option>
+                            <template x-for="cat in categories" :key="cat.id">
+                                <option :value="cat.id" x-text="cat.name"></option>
+                            </template>
+                        </select>
+                        @error('category_id')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div x-show="subcategories.length > 0">
+                        <label for="subcategory_id" class="mb-2 block text-sm font-semibold text-gray-700">
+                            Subcategory
+                            <span class="ml-1 font-normal text-gray-400">— optional</span>
+                        </label>
+                        <select id="subcategory_id" x-model="subcategoryId"
+                            class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500">
+                            <option value="">None</option>
+                            <template x-for="sub in subcategories" :key="sub.id">
+                                <option :value="sub.id" x-text="sub.name"></option>
+                            </template>
+                        </select>
+                    </div>
+
+                    <input type="hidden" name="category_id" :value="subcategoryId || categoryId">
                 </div>
 
                 <!-- Package -->
@@ -275,6 +292,29 @@
                 trialFields.classList.add('hidden');
                 trialValue.required = false;
                 trialValue.value = '';
+            }
+        }
+
+        function categorySelector(categories, initialCategoryId, initialSubcategoryId) {
+            return {
+                categories: categories,
+                categoryId: initialCategoryId ? String(initialCategoryId) : '',
+                subcategoryId: initialSubcategoryId ? String(initialSubcategoryId) : '',
+                subcategories: [],
+
+                init() {
+                    this.updateSubcategories();
+                },
+
+                onCategoryChange() {
+                    this.subcategoryId = '';
+                    this.updateSubcategories();
+                },
+
+                updateSubcategories() {
+                    const cat = this.categories.find(c => c.id == this.categoryId);
+                    this.subcategories = cat ? cat.children : [];
+                }
             }
         }
     </script>

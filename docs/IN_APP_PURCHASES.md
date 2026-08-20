@@ -87,3 +87,45 @@ matching store product to buy).
       to the app) - relaunch and confirm it still unlocks (tests the pending-purchase replay)
 - [ ] Log out and confirm free question sets are still fully accessible with no auth
 - [ ] Confirm a purchased set shows "Owned" and cannot be bought again
+- [ ] **Regression test for the "money charged, set not unlocked" bug**: temporarily break
+      the Google consume call (e.g. briefly revoke the service account's Play Console access,
+      or point `GOOGLE_APPLICATION_CREDENTIALS` at a wrong/expired key) and buy a set on
+      Android. Confirm the purchase still unlocks and appears in `/purchases/mine` even
+      though the consume step fails - check `storage/logs/laravel.log` for the "Google Play
+      consume failed after purchase was recorded" entry to confirm it was logged, not silent.
+- [ ] Call `POST /purchases/verify` twice with the same receipt/token (e.g. re-tap buy after
+      success, or replay via Postman) - confirm only one `purchases` row is created.
+- [ ] Start buying the same price tier for two different question sets before the first
+      purchase resolves - confirm the app blocks the second attempt
+      ("A purchase for this item is already in progress...") instead of losing the first
+      purchase's target.
+- [ ] On the My Purchases screen, leave a purchase pending (e.g. turn on airplane mode right
+      after the native purchase sheet closes, before verify() can fire), then tap
+      "Re-check My Purchases" and confirm it recovers the purchase without a full app
+      relaunch.
+- [ ] As an admin, use Dashboard > Purchases > "Grant access" to manually grant a test user
+      a question set; confirm it unlocks for them and shows up in the purchases list with
+      platform "manual".
+
+## 6. Known gap: no server-to-server reconciliation (deferred)
+
+Verification today is purely **client-triggered**: the backend only learns about a
+purchase when the app successfully calls `POST /purchases/verify`. The app retries this
+automatically (unfinished native transactions replay on next connection/relaunch, and the
+"Re-check My Purchases" button now forces a retry too), but if the app is uninstalled or
+never reopened after a failed verify, the backend never finds out - even though the store
+already charged the user.
+
+The complete fix is **Apple App Store Server Notifications V2** and **Google Play
+Real-Time Developer Notifications (RTDN)**: server-to-server webhooks that notify the
+backend of a purchase independently of the app. These require a public HTTPS URL
+registered in App Store Connect / Google Cloud Pub/Sub, which doesn't exist until this
+backend is deployed - so it's tracked as a **post-deploy follow-up**, not blocking launch.
+Do this once a production backend URL exists:
+
+1. Add a webhook route + controller that verifies the notification signature (Apple JWS /
+   Google Pub/Sub push auth) and, for a completed purchase, runs the same
+   `PurchaseVerificationService` logic the app-triggered path uses.
+2. Register the endpoint URL in App Store Connect (App Information > App Store Server
+   Notifications) and Google Play Console (Monetization setup > Real-time developer
+   notifications, via a Pub/Sub topic).

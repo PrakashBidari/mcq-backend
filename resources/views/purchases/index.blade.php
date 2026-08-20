@@ -10,14 +10,19 @@
                 <h3 class="text-xl font-bold text-gray-800">All Purchases</h3>
                 <p class="text-sm text-gray-600 mt-1">Completed transactions across question sets, packages, attempt packs and subscriptions</p>
             </div>
-            <form method="GET" class="flex items-center gap-2">
-                <select name="type" onchange="this.form.submit()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                    <option value="">All types</option>
-                    @foreach (['question_set' => 'Question Set', 'package' => 'Package', 'attempt_pack' => 'Attempt Pack', 'subscription' => 'Subscription'] as $value => $label)
-                        <option value="{{ $value }}" {{ request('type') === $value ? 'selected' : '' }}>{{ $label }}</option>
-                    @endforeach
-                </select>
-            </form>
+            <div class="flex items-center gap-2">
+                <form method="GET" class="flex items-center gap-2">
+                    <select name="type" onchange="this.form.submit()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                        <option value="">All types</option>
+                        @foreach (['question_set' => 'Question Set', 'package' => 'Package', 'attempt_pack' => 'Attempt Pack', 'subscription' => 'Subscription'] as $value => $label)
+                            <option value="{{ $value }}" {{ request('type') === $value ? 'selected' : '' }}>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </form>
+                <a href="{{ route('purchases.grant-form') }}" class="px-3 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700">
+                    Grant access
+                </a>
+            </div>
         </div>
 
         <div class="p-6">

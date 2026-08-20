@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\AchievementController;
+use App\Http\Controllers\Api\AppPageController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\PackageController;
@@ -48,6 +50,8 @@ Route::get('/blogs', [QuizController::class, 'getBlogs']);
 Route::get('/blog-categories', [QuizController::class, 'getBlogCategories']);
 Route::get('/faqs', [QuizController::class, 'getFaqs']);
 Route::get('/ads', [QuizController::class, 'getAds']);
+Route::get('/banners', [QuizController::class, 'getBanners']);
+Route::get('/app-pages/{slug}', [AppPageController::class, 'show']);
 Route::get('/price-tiers', [PurchaseController::class, 'priceTiers']);
 Route::get('/attempt-packs', [WalletController::class, 'attemptPacks']);
 Route::get('/subscription-plans', [WalletController::class, 'subscriptionPlans']);
@@ -56,6 +60,7 @@ Route::get('/subscription-plans', [WalletController::class, 'subscriptionPlans']
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/quiz/save-attempt', [QuizController::class, 'saveQuizAttempt']);
     Route::get('/quiz/history', [QuizController::class, 'getUserQuizHistory']);
+    Route::get('/quiz/achievements', [AchievementController::class, 'index']);
 
     Route::post('/purchases/verify', [PurchaseController::class, 'verify']);
     Route::get('/purchases/mine', [PurchaseController::class, 'myPurchases']);

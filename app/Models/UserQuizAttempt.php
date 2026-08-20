@@ -17,6 +17,7 @@ class UserQuizAttempt extends Model
         'percentage',
         'answers',
         'completed_at',
+        'time_taken_seconds',
     ];
 
     protected $casts = [

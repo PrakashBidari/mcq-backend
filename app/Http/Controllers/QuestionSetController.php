@@ -21,10 +21,10 @@ class QuestionSetController extends Controller
         if (!auth()->user()->isAdmin() && !auth()->user()->hasPermission('create', 'QuestionSet')) {
             return redirect()->route('question-sets.index')->with('error', 'No permission.');
         }
-        $categories = Category::all();
-        $priceTiers = PriceTier::where('is_active', true)->orderBy('sort_order')->get();
+        $categories = Category::whereNull('parent_id')->with('children')->orderBy('name')->get();
         $packages = QuestionSetPackage::orderBy('name')->get();
-        return view('question-sets.create', compact('categories', 'priceTiers', 'packages'));
+        [$selectedCategoryId, $selectedSubcategoryId] = $this->splitCategorySelection($categories, old('category_id'));
+        return view('question-sets.create', compact('categories', 'packages', 'selectedCategoryId', 'selectedSubcategoryId'));
     }
 
     public function store(Request $request)
@@ -45,10 +45,10 @@ class QuestionSetController extends Controller
             return redirect()->route('question-sets.index')->with('error', 'No permission.');
         }
         $questionSet = QuestionSet::withCount('questions')->findOrFail($id);
-        $categories  = Category::all();
-        $priceTiers = PriceTier::where('is_active', true)->orderBy('sort_order')->get();
+        $categories  = Category::whereNull('parent_id')->with('children')->orderBy('name')->get();
         $packages = QuestionSetPackage::orderBy('name')->get();
-        return view('question-sets.edit', compact('questionSet', 'categories', 'priceTiers', 'packages'));
+        [$selectedCategoryId, $selectedSubcategoryId] = $this->splitCategorySelection($categories, old('category_id', $questionSet->category_id));
+        return view('question-sets.edit', compact('questionSet', 'categories', 'packages', 'selectedCategoryId', 'selectedSubcategoryId'));
     }
 
     public function update(Request $request, string $id)
@@ -62,6 +62,32 @@ class QuestionSetController extends Controller
 
         $questionSet->update($validated);
         return redirect()->route('question-sets.index')->with('success', 'Question set updated!');
+    }
+
+    // Given a top-level Category collection (each with its `children` loaded) and an
+    // effective category id (which may belong to a top-level category or one of its
+    // children), returns [categoryId, subcategoryId] so the create/edit forms can
+    // preselect the right pair of dropdowns.
+    private function splitCategorySelection($categories, $effectiveId): array
+    {
+        if (!$effectiveId) {
+            return [null, null];
+        }
+
+        $effectiveId = (int) $effectiveId;
+
+        foreach ($categories as $category) {
+            if ($category->id === $effectiveId) {
+                return [$category->id, null];
+            }
+
+            $child = $category->children->firstWhere('id', $effectiveId);
+            if ($child) {
+                return [$category->id, $child->id];
+            }
+        }
+
+        return [null, null];
     }
 
     private function validateRequest(Request $request): array

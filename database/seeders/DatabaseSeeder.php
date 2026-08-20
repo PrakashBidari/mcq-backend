@@ -11,6 +11,8 @@ class DatabaseSeeder extends Seeder
         $this->call([
             QuizDataSeeder::class,
             AdvertisementSeeder::class,
+            BannerSeeder::class,
+            AppPageSeeder::class,
         ]);
     }
 }

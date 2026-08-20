@@ -52,7 +52,14 @@ class PurchaseVerificationService
         $targetColumn = $this->targetColumn($purchaseType);
         $isItemPurchase = in_array($purchaseType, ['question_set', 'package'], true);
 
-        return DB::transaction(function () use (
+        // Only the idempotent DB write happens inside the transaction. The Google
+        // "consume" call below is a live network request to Google's API - if it were
+        // inside this transaction, a transient failure there would roll back the
+        // Purchase row we just verified as legitimately paid, leaving the user charged
+        // but locked out. Consuming just re-arms the SKU as purchasable again on
+        // Google's side; it isn't required for the user's own access, so it's run
+        // after commit and its failure is logged, not fatal.
+        $purchase = DB::transaction(function () use (
             $user, $purchaseType, $target, $platform, $productId, $tierKey,
             $transactionId, $amount, $currency, $targetColumn, $isItemPurchase
         ) {
@@ -87,15 +94,24 @@ class PurchaseVerificationService
             }
 
             if ($purchase->wasRecentlyCreated) {
-                if ($platform === 'android') {
-                    Product::googlePlay()->id($productId)->token($receiptOrToken)->consume();
-                }
-
                 $this->applySideEffects($purchaseType, $user, $target);
             }
 
             return $purchase;
         });
+
+        if ($purchase->wasRecentlyCreated && $platform === 'android') {
+            try {
+                Product::googlePlay()->id($productId)->token($receiptOrToken)->consume();
+            } catch (\Throwable $e) {
+                \Log::error('Google Play consume failed after purchase was recorded: ' . $e->getMessage(), [
+                    'purchase_id' => $purchase->id,
+                    'product_id'  => $productId,
+                ]);
+            }
+        }
+
+        return $purchase;
     }
 
     private function targetColumn(string $purchaseType): string

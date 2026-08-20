@@ -87,12 +87,26 @@ class PurchaseController extends Controller
                 $receiptOrToken,
             );
         } catch (ValidationException $e) {
+            \Log::error('Purchase verification rejected: ' . json_encode($e->errors()), [
+                'user_id'       => $request->user()->id,
+                'platform'      => $request->platform,
+                'product_id'    => $request->product_id,
+                'purchase_type' => $purchaseType,
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Purchase could not be verified',
                 'errors'  => $e->errors(),
             ], 422);
         } catch (InvalidReceiptException|GuzzleException $e) {
+            \Log::error('Purchase verification failed: ' . $e->getMessage(), [
+                'user_id'       => $request->user()->id,
+                'platform'      => $request->platform,
+                'product_id'    => $request->product_id,
+                'purchase_type' => $purchaseType,
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Purchase verification failed',

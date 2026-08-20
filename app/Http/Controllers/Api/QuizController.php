@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Advertisement;
+use App\Models\Banner;
 use App\Models\Blog;
 use App\Models\BlogCategory;
 use App\Models\Book;
@@ -309,10 +310,11 @@ class QuizController extends Controller
     public function saveQuizAttempt(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'question_set_id' => 'nullable|exists:question_sets,id',
-            'score'           => 'required|integer|min:0',
-            'total_questions' => 'required|integer|min:1',
-            'answers'         => 'required|array',
+            'question_set_id'    => 'nullable|exists:question_sets,id',
+            'score'               => 'required|integer|min:0',
+            'total_questions'     => 'required|integer|min:1',
+            'answers'             => 'required|array',
+            'time_taken_seconds'  => 'nullable|integer|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -326,13 +328,14 @@ class QuizController extends Controller
         $percentage = ($request->score / $request->total_questions) * 100;
 
         $attempt = UserQuizAttempt::create([
-            'user_id'          => $request->user()->id,
-            'question_set_id'  => $request->question_set_id,
-            'score'            => $request->score,
-            'total_questions'  => $request->total_questions,
-            'percentage'       => $percentage,
-            'answers'          => $request->answers,
-            'completed_at'     => now(),
+            'user_id'             => $request->user()->id,
+            'question_set_id'     => $request->question_set_id,
+            'score'               => $request->score,
+            'total_questions'     => $request->total_questions,
+            'percentage'          => $percentage,
+            'answers'             => $request->answers,
+            'completed_at'        => now(),
+            'time_taken_seconds'  => $request->time_taken_seconds,
         ]);
 
         return response()->json([
@@ -439,6 +442,28 @@ class QuizController extends Controller
         return response()->json([
             'success' => true,
             'data'    => $faqs
+        ]);
+    }
+
+    public function getBanners()
+    {
+        $banners = Banner::where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get()
+            ->map(function ($banner) {
+                return [
+                    'id'       => $banner->id,
+                    'title'    => $banner->title,
+                    'subtitle' => $banner->subtitle,
+                    'image'    => $banner->display_image,
+                    'type'     => $banner->link_type,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $banners
         ]);
     }
 

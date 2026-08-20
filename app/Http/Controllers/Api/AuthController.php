@@ -178,6 +178,7 @@ class AuthController extends Controller
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
+                    'profile_image' => $user->profile_image ? url('storage/' . $user->profile_image) : null,
                 ],
                 'token' => $token,
             ]
@@ -226,6 +227,7 @@ class AuthController extends Controller
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
+                    'profile_image' => $user->profile_image ? url('storage/' . $user->profile_image) : null,
                 ],
                 'token' => $token,
             ]
@@ -246,9 +248,15 @@ class AuthController extends Controller
     // Get user profile
     public function user(Request $request)
     {
+        $user = $request->user();
+        $data = $user->toArray();
+        // Same absolute-URL shape as getProfile() below — the mobile app renders
+        // this directly in an <Image>, so a bare storage-relative path won't load.
+        $data['profile_image'] = $user->profile_image ? url('storage/' . $user->profile_image) : null;
+
         return response()->json([
             'success' => true,
-            'data' => $request->user()
+            'data' => $data
         ], 200);
     }
 
@@ -478,6 +486,7 @@ class AuthController extends Controller
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
+                    'profile_image' => $user->profile_image ? url('storage/' . $user->profile_image) : null,
                 ],
                 'token' => $token,
             ]

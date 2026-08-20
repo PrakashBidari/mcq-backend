@@ -9,16 +9,24 @@ use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         // Only admin can access
         if (!auth()->user()->isAdmin()) {
             return redirect()->route('dashboard')->with('error', 'Access denied.');
         }
 
-        $users = User::withCount('teacherPermissions')->orderBy('created_at', 'desc')->get();
+        $role = $request->query('role', 'admin');
+        if (!in_array($role, ['admin', 'teacher', 'user'])) {
+            $role = 'admin';
+        }
 
-        return view('users.index', compact('users'));
+        $users = User::withCount('teacherPermissions')
+            ->where('role', $role)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return view('users.index', compact('users', 'role'));
     }
 
     public function create()

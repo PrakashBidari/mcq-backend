@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\AdvertisementController;
+use App\Http\Controllers\AppPageController;
 use App\Http\Controllers\AttemptPackController;
+use App\Http\Controllers\BannerController;
 use App\Http\Controllers\BlogCategoryController;
 use App\Http\Controllers\BlogController;
 use App\Http\Controllers\BookCategoryController;
@@ -146,6 +148,8 @@ Route::middleware(['auth', 'dashboard'])->prefix('dashboard')->group(function ()
 
     // Purchases / subscribers / revenue (read-only)
     Route::get('purchases', [PurchaseAdminController::class, 'index'])->name('purchases.index');
+    Route::get('purchases/grant', [PurchaseAdminController::class, 'grantForm'])->name('purchases.grant-form');
+    Route::post('purchases/grant', [PurchaseAdminController::class, 'grant'])->name('purchases.grant');
     Route::get('subscribers', [PurchaseAdminController::class, 'subscribers'])->name('subscribers.index');
     Route::get('revenue', [PurchaseAdminController::class, 'revenue'])->name('revenue.index');
 
@@ -154,6 +158,13 @@ Route::middleware(['auth', 'dashboard'])->prefix('dashboard')->group(function ()
     Route::get('advertisements/{advertisement}/edit', [AdvertisementController::class, 'edit'])->name('advertisements.edit');
     Route::put('advertisements/{advertisement}', [AdvertisementController::class, 'update'])->name('advertisements.update');
     Route::patch('advertisements/{advertisement}/toggle', [AdvertisementController::class, 'toggleStatus'])->name('advertisements.toggle');
+
+    // Home banners (hero swiper slides)
+    Route::resource('banners', BannerController::class);
+
+    // App content pages — edit-only, fixed slugs (about-app, privacy-policy)
+    Route::get('app-pages/{slug}/edit', [AppPageController::class, 'edit'])->name('app-pages.edit');
+    Route::put('app-pages/{slug}', [AppPageController::class, 'update'])->name('app-pages.update');
 
     // Users Management (Admin only)
     Route::resource('users', UserController::class);

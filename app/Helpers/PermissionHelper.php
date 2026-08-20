@@ -25,6 +25,8 @@ class PermissionHelper
             'ContactMessage',
             'ContactSetting' => 'ContactSettings',
             'User' => 'Users',
+            'Banner' => 'Banners',
+            'AppContent' => 'App Content',
         ];
     }
 
