@@ -42,8 +42,8 @@
                 >
                     <option value="">All Categories</option>
                     @foreach($categories as $category)
-                        <option value="{{ $category }}" {{ request('category') == $category ? 'selected' : '' }}>
-                            {{ $category }}
+                        <option value="{{ $category->id }}" {{ request('category') == $category->id ? 'selected' : '' }}>
+                            {{ $category->name }}
                         </option>
                     @endforeach
                 </select>
