@@ -35,8 +35,9 @@
 
                 <div>
                     <label for="amount" class="block text-sm font-semibold text-gray-700 mb-2">Amount (JPY) <span class="text-red-500">*</span></label>
-                    <input type="number" name="amount" id="amount" value="{{ old('amount') }}" required min="0.01" step="0.01"
+                    <input type="number" name="amount" id="amount" value="{{ old('amount') }}" required min="1" step="1"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                    <p class="mt-1 text-xs text-gray-500">Whole yen only — JPY has no decimal subunit.</p>
                     @error('amount')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>
 

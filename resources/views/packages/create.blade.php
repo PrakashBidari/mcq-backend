@@ -111,18 +111,27 @@
 
                 <div id="price_field" class="{{ old('is_paid') ? '' : 'hidden' }} space-y-4 rounded-lg border border-gray-200 p-4">
                     <div>
-                        <label for="price" class="mb-2 block text-sm font-semibold text-gray-700">Price <span class="text-red-500">*</span></label>
-                        <div class="relative">
-                            <span class="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-500">&yen;</span>
-                            <input type="number" name="price" id="price" min="0.01" step="0.01" value="{{ old('price') }}"
-                                class="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:border-transparent focus:ring-2 focus:ring-purple-500"
-                                placeholder="e.g. 300">
-                        </div>
+                        <label for="price_tier_id" class="mb-2 block text-sm font-semibold text-gray-700">Price Tier <span class="text-red-500">*</span></label>
+                        <select name="price_tier_id" id="price_tier_id" onchange="updatePaidPricePreview(this)"
+                            class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500">
+                            <option value="">Select a price tier</option>
+                            @foreach ($priceTiers as $tier)
+                                <option value="{{ $tier->id }}" data-amount="{{ $tier->amount }}"
+                                    {{ old('price_tier_id') == $tier->id ? 'selected' : '' }}>
+                                    &yen;{{ number_format($tier->amount) }} ({{ $tier->tier_key }})
+                                </option>
+                            @endforeach
+                        </select>
                         <p class="mt-1 text-xs text-gray-500">
-                            Any amount in yen. A matching store product must exist in App Store Connect / Google
-                            Play Console at this exact price before it can be bought in the app.
+                            Each tier maps to a matching store product already created in App Store Connect / Google
+                            Play Console — pick the tier, don't type a custom amount.
                         </p>
-                        @error('price')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+                        @error('price_tier_id')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+                    </div>
+
+                    <div>
+                        <span class="mb-2 block text-sm font-semibold text-gray-700">Paid Price</span>
+                        <p id="paid_price_preview" class="text-lg font-bold text-gray-800">&yen;0</p>
                     </div>
 
                     <div>
@@ -194,21 +203,32 @@
 
 @push('scripts')
     <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            updatePaidPricePreview(document.getElementById('price_tier_id'));
+        });
+
         function togglePriceField(checkbox) {
             const priceField = document.getElementById('price_field');
-            const priceInput = document.getElementById('price');
+            const priceTierSelect = document.getElementById('price_tier_id');
             const accessValue = document.getElementById('access_value');
             if (checkbox.checked) {
                 priceField.classList.remove('hidden');
-                priceInput.required = true;
+                priceTierSelect.required = true;
                 accessValue.required = true;
             } else {
                 priceField.classList.add('hidden');
-                priceInput.required = false;
-                priceInput.value = '';
+                priceTierSelect.required = false;
+                priceTierSelect.value = '';
                 accessValue.required = false;
                 accessValue.value = '';
+                updatePaidPricePreview(priceTierSelect);
             }
+        }
+
+        function updatePaidPricePreview(select) {
+            const option = select.options[select.selectedIndex];
+            const amount = option ? Number(option.dataset.amount || 0) : 0;
+            document.getElementById('paid_price_preview').textContent = '¥' + amount.toLocaleString();
         }
 
         function toggleTrialFields(checkbox) {

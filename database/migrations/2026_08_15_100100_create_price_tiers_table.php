@@ -24,12 +24,16 @@ return new class extends Migration
         // existing App Store Connect / Google Play Console products keep resolving.
         $now = now();
         $tiers = [
+            'tier_100'  => 100,
+            'tier_200'  => 200,
             'tier_300'  => 300,
+            'tier_400'  => 400,
             'tier_500'  => 500,
-            'tier_800'  => 800,
-            'tier_1200' => 1200,
-            'tier_1800' => 1800,
-            'tier_2800' => 2800,
+            'tier_1000' => 1000,
+            'tier_1500' => 1500,
+            'tier_2000' => 2000,
+            'tier_3000' => 3000,
+            'tier_5000' => 5000,
         ];
 
         $rows = [];

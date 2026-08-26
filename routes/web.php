@@ -141,7 +141,7 @@ Route::middleware(['auth', 'dashboard'])->prefix('dashboard')->group(function ()
     Route::get('packages-available-sets', [QuestionSetPackageController::class, 'availableQuestionSets'])->name('packages.available-sets');
 
     // Dynamic payment catalog
-    Route::resource('price-tiers', PriceTierController::class)->except('destroy');
+    Route::resource('price-tiers', PriceTierController::class);
     Route::patch('price-tiers/{price_tier}/toggle', [PriceTierController::class, 'toggle'])->name('price-tiers.toggle');
     Route::resource('attempt-packs', AttemptPackController::class);
     Route::resource('subscription-plans', SubscriptionPlanController::class);

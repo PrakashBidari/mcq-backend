@@ -35,7 +35,13 @@
                     @forelse($priceTiers as $tier)
                         <tr class="border-b border-gray-100 hover:bg-gray-50">
                             <td class="py-4"><code class="text-sm bg-gray-100 px-2 py-1 rounded">{{ $tier->tier_key }}</code></td>
-                            <td class="py-4">{{ $tier->label }}</td>
+                            <td class="py-4">
+                                @if($tier->label)
+                                    &yen;{{ ltrim($tier->label, '¥') }}
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
+                            </td>
                             <td class="py-4 font-semibold text-gray-800">&yen;{{ number_format($tier->amount, 2) }}</td>
                             <td class="py-4">
                                 <span class="px-3 py-1 rounded-full text-sm font-semibold {{ $tier->is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600' }}">
@@ -52,6 +58,14 @@
                                             <button type="submit" class="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition">
                                                 {{ $tier->is_active ? 'Deactivate' : 'Activate' }}
                                             </button>
+                                        </form>
+                                    @endif
+                                    @if(auth()->user()->isAdmin() || auth()->user()->hasPermission('delete', 'PriceTier'))
+                                        <form action="{{ route('price-tiers.destroy', $tier->id) }}" method="POST"
+                                            onsubmit="return confirm('Delete this price tier? This cannot be undone.');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition">Delete</button>
                                         </form>
                                     @endif
                                 </div>

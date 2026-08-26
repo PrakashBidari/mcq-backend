@@ -233,9 +233,9 @@
 
                 <!-- Payments -->
                 @php
-                    $paymentModels = ['Purchase'];
+                    $paymentModels = ['Purchase', 'PriceTier'];
                     $canSeePayments = auth()->user()->isAdmin() || collect($paymentModels)->contains(fn($m) => auth()->user()->hasPermission('read', $m));
-                    $paymentRoutes = ['purchases.*', 'subscribers.*', 'revenue.*'];
+                    $paymentRoutes = ['purchases.*', 'subscribers.*', 'revenue.*', 'price-tiers.*'];
                     $onPaymentsPage = collect($paymentRoutes)->contains(fn($r) => request()->routeIs($r));
                 @endphp
                 @if ($canSeePayments)
@@ -268,6 +268,12 @@
                                 <a href="{{ route('revenue.index') }}"
                                     class="{{ request()->routeIs('revenue.*') ? 'bg-purple-600' : 'hover:bg-purple-600/50' }} flex items-center rounded-lg px-4 py-2 text-sm transition">
                                     Revenue
+                                </a>
+                            @endif
+                            @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('read', 'PriceTier'))
+                                <a href="{{ route('price-tiers.index') }}"
+                                    class="{{ request()->routeIs('price-tiers.*') ? 'bg-purple-600' : 'hover:bg-purple-600/50' }} flex items-center rounded-lg px-4 py-2 text-sm transition">
+                                    Price Tiers
                                 </a>
                             @endif
                         </div>

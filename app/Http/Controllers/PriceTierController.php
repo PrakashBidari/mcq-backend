@@ -32,7 +32,7 @@ class PriceTierController extends Controller
         $validated = $request->validate([
             'tier_key'   => 'required|string|max:255|unique:price_tiers,tier_key|regex:/^[a-z0-9_]+$/',
             'label'      => 'nullable|string|max:255',
-            'amount'     => 'required|numeric|min:0.01',
+            'amount'     => 'required|integer|min:1',
             'sort_order' => 'nullable|integer|min:0',
         ]);
 
@@ -66,7 +66,7 @@ class PriceTierController extends Controller
 
         $validated = $request->validate([
             'label'      => 'nullable|string|max:255',
-            'amount'     => 'required|numeric|min:0.01',
+            'amount'     => 'required|integer|min:1',
             'sort_order' => 'nullable|integer|min:0',
         ]);
 
@@ -88,5 +88,22 @@ class PriceTierController extends Controller
         $priceTier->update(['is_active' => !$priceTier->is_active]);
 
         return redirect()->route('price-tiers.index')->with('success', 'Price tier status updated!');
+    }
+
+    public function destroy(string $id)
+    {
+        if (!auth()->user()->isAdmin() && !auth()->user()->hasPermission('delete', 'PriceTier')) {
+            return redirect()->route('price-tiers.index')->with('error', 'You do not have permission to delete price tiers.');
+        }
+
+        $priceTier = PriceTier::withCount(['questionSets', 'packages'])->findOrFail($id);
+
+        if ($priceTier->question_sets_count > 0 || $priceTier->packages_count > 0) {
+            return redirect()->route('price-tiers.index')->with('error', 'This price tier is still used by one or more question sets or packages — deactivate it instead, or reassign those first.');
+        }
+
+        $priceTier->delete();
+
+        return redirect()->route('price-tiers.index')->with('success', 'Price tier deleted!');
     }
 }

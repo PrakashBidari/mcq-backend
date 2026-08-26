@@ -23,8 +23,9 @@ class QuestionSetController extends Controller
         }
         $categories = Category::whereNull('parent_id')->with('children')->orderBy('name')->get();
         $packages = QuestionSetPackage::orderBy('name')->get();
+        $priceTiers = PriceTier::where('is_active', true)->orderBy('sort_order')->get();
         [$selectedCategoryId, $selectedSubcategoryId] = $this->splitCategorySelection($categories, old('category_id'));
-        return view('question-sets.create', compact('categories', 'packages', 'selectedCategoryId', 'selectedSubcategoryId'));
+        return view('question-sets.create', compact('categories', 'packages', 'priceTiers', 'selectedCategoryId', 'selectedSubcategoryId'));
     }
 
     public function store(Request $request)
@@ -47,8 +48,9 @@ class QuestionSetController extends Controller
         $questionSet = QuestionSet::withCount('questions')->findOrFail($id);
         $categories  = Category::whereNull('parent_id')->with('children')->orderBy('name')->get();
         $packages = QuestionSetPackage::orderBy('name')->get();
+        $priceTiers = PriceTier::where('is_active', true)->orderBy('sort_order')->get();
         [$selectedCategoryId, $selectedSubcategoryId] = $this->splitCategorySelection($categories, old('category_id', $questionSet->category_id));
-        return view('question-sets.edit', compact('questionSet', 'categories', 'packages', 'selectedCategoryId', 'selectedSubcategoryId'));
+        return view('question-sets.edit', compact('questionSet', 'categories', 'packages', 'priceTiers', 'selectedCategoryId', 'selectedSubcategoryId'));
     }
 
     public function update(Request $request, string $id)
@@ -99,7 +101,7 @@ class QuestionSetController extends Controller
             'description'   => 'nullable|string',
             'is_active'     => 'boolean',
             'is_paid'       => 'boolean',
-            'price'         => 'nullable|numeric|min:0.01|required_if:is_paid,1',
+            'price_tier_id' => 'nullable|exists:price_tiers,id|required_if:is_paid,1',
             'access_type'   => 'nullable|in:attempts,days|required_if:is_paid,1',
             'access_value'  => 'nullable|integer|min:1|required_if:is_paid,1',
             'time_limit'    => 'nullable|numeric|min:0.1|max:180',
@@ -113,7 +115,7 @@ class QuestionSetController extends Controller
         $validated['package_id'] = $request->package_id ?: null;
 
         if ($validated['is_paid']) {
-            $priceTier = PriceTier::forAmount((float) $validated['price']);
+            $priceTier = PriceTier::findOrFail($validated['price_tier_id']);
             $validated['price_tier']    = $priceTier->tier_key;
             $validated['price_tier_id'] = $priceTier->id;
             $validated['price']         = $priceTier->amount;

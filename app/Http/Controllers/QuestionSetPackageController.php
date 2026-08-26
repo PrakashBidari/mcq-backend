@@ -159,7 +159,7 @@ class QuestionSetPackageController extends Controller
             'description'    => 'nullable|string',
             'is_active'      => 'boolean',
             'is_paid'        => 'boolean',
-            'price'          => 'nullable|numeric|min:0.01|required_if:is_paid,1',
+            'price_tier_id'  => 'nullable|exists:price_tiers,id|required_if:is_paid,1',
             'access_type'    => 'nullable|in:attempts,days|required_if:is_paid,1',
             'access_value'   => 'nullable|integer|min:1|required_if:is_paid,1',
             'trial_enabled'  => 'boolean',
@@ -174,15 +174,11 @@ class QuestionSetPackageController extends Controller
         $validated['is_active'] = $request->has('is_active');
         $validated['is_paid']   = $request->has('is_paid');
 
-        if ($validated['is_paid']) {
-            $priceTier = PriceTier::forAmount((float) $validated['price']);
-            $validated['price_tier_id'] = $priceTier->id;
-        } else {
+        if (!$validated['is_paid']) {
             $validated['price_tier_id'] = null;
             $validated['access_type']   = null;
             $validated['access_value']  = null;
         }
-        unset($validated['price']);
 
         $validated['trial_enabled'] = $request->has('trial_enabled');
         if (!$validated['trial_enabled']) {
