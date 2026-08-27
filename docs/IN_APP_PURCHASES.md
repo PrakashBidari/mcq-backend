@@ -13,9 +13,16 @@ App Store Connect and Google Play Console before purchases can be tested end-to-
 - iOS product ID: `{bundle_id}.{tier}` (e.g. `com.ikigaiconnect.app.tier_500`)
 - Android product ID: `{tier}` (e.g. `tier_500`)
 - The mobile app buys the tier product via StoreKit / Play Billing (`react-native-iap`),
-  then sends the receipt/purchase token to `POST /api/purchases/verify`, which checks it
+  then sends the signed transaction to `POST /api/purchases/verify`, which checks it
   directly against Apple/Google and records a `purchases` row unlocking that question set
   for that user.
+  - **iOS**: sends the StoreKit 2 **JWS-signed transaction** (`purchase.purchaseToken`,
+    or `getTransactionJwsIOS(productId)` as a fallback) - not the legacy base64 app
+    receipt, which isn't generated at all when running against a local StoreKit config.
+    The backend parses the JWS, verifies its certificate chain is rooted at Apple's CA
+    (except for `environment: "Xcode"` - see the testing section), and checks the
+    `bundleId` / `productId` / revocation state before trusting the `transactionId`.
+  - **Android**: sends the Play `purchaseToken`, verified via the Play Developer API.
 - Products are treated as **repeatable/consumable** on both stores, since the same tier
   product can be "bought" again for a different question set. Our `purchases` table (not
   the store) is the source of truth for what a user owns.
@@ -62,7 +69,8 @@ App Store Connect and Google Play Console before purchases can be tested end-to-
 
 ```
 APPSTORE_BUNDLE_ID=com.ikigaiconnect.app
-APPSTORE_PASSWORD=            # shared secret from step 1.3
+APPSTORE_PASSWORD=            # shared secret from step 1.3 (legacy receipt fallback only)
+APPSTORE_ALLOW_XCODE_ENV=false   # true ONLY on a dev/test backend - see step 5
 GOOGLE_PLAY_PACKAGE_NAME=com.ikigaiconnect.app
 GOOGLE_APPLICATION_CREDENTIALS=   # absolute path to the service account JSON from step 2.3
 ```
@@ -80,6 +88,22 @@ then they're paid but unbuyable (the app shows them as needing purchase but ther
 matching store product to buy).
 
 ## 5. Testing checklist
+
+### Testing iOS purchases against a local StoreKit configuration file (Xcode)
+
+A `.storekit` config file lets you test the purchase flow in the simulator / a dev build
+with no App Store Connect products and no sandbox account. Those transactions are signed
+by a **local test CA**, not Apple's, so the backend cannot verify their signature - it
+would reject them as "signature could not be verified".
+
+To let a **development/test backend** accept them, set `APPSTORE_ALLOW_XCODE_ENV=true` in
+that backend's `.env` (then `php artisan config:clear`). The backend still checks the
+`bundleId` and `productId` in the transaction, but skips the certificate-chain check for
+transactions whose `environment` is `"Xcode"`. **Never set this in production** - it would
+let anyone forge a transaction. Sandbox and Production transactions are always fully
+verified regardless of this flag.
+
+### Full checklist
 
 - [ ] Sign into a real device with the Apple Sandbox Tester / Google License Tester account
 - [ ] Buy a paid question set - confirm it unlocks immediately

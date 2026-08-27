@@ -47,4 +47,11 @@ return [
         'redirect' => env('FACEBOOK_REDIRECT_URI'),
     ],
 
+    'appstore' => [
+        // Accept StoreKit 2 transactions signed by a local Xcode StoreKit configuration
+        // file (environment "Xcode"). These can't be verified against Apple's certificate
+        // chain, so only enable this on a development/testing backend - never in production.
+        'allow_xcode_env' => env('APPSTORE_ALLOW_XCODE_ENV', false),
+    ],
+
 ];

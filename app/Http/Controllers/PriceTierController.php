@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PriceTier;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class PriceTierController extends Controller
 {
@@ -30,7 +31,7 @@ class PriceTierController extends Controller
         }
 
         $validated = $request->validate([
-            'tier_key'   => 'required|string|max:255|unique:price_tiers,tier_key|regex:/^[a-z0-9_]+$/',
+            'tier_key'   => 'required|string|max:255|unique:price_tiers,tier_key',
             'label'      => 'nullable|string|max:255',
             'amount'     => 'required|integer|min:1',
             'sort_order' => 'nullable|integer|min:0',
@@ -65,6 +66,7 @@ class PriceTierController extends Controller
         $priceTier = PriceTier::findOrFail($id);
 
         $validated = $request->validate([
+            'tier_key'   => ['required', 'string', 'max:255', Rule::unique('price_tiers', 'tier_key')->ignore($priceTier->id)],
             'label'      => 'nullable|string|max:255',
             'amount'     => 'required|integer|min:1',
             'sort_order' => 'nullable|integer|min:0',

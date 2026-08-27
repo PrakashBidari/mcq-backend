@@ -14,6 +14,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Imdhemy\AppStore\Exceptions\InvalidReceiptException;
+use Imdhemy\AppStore\Jws\AppStoreJwsVerifier;
+use Imdhemy\AppStore\Jws\Parser as JwsParser;
+use Imdhemy\AppStore\ValueObjects\JwsTransactionInfo;
 use Imdhemy\GooglePlay\Products\ProductPurchase;
 use Imdhemy\Purchases\Facades\Product;
 
@@ -176,6 +179,13 @@ class PurchaseVerificationService
      */
     private function verifyAppStore(string $receiptData, string $expectedProductId): string
     {
+        // StoreKit 2 clients (react-native-iap v15+) send a JWS-signed transaction:
+        // three base64url segments separated by dots (header.payload.signature). Older
+        // clients / Apple's legacy verifyReceipt send a single base64 app-receipt blob.
+        if (substr_count($receiptData, '.') === 2) {
+            return $this->verifyAppStoreJws($receiptData, $expectedProductId);
+        }
+
         $response = Product::appStore()
             ->receiptData($receiptData)
             ->verifyReceipt();
@@ -191,6 +201,74 @@ class PurchaseVerificationService
         throw ValidationException::withMessages([
             'receipt' => 'No matching transaction found in the App Store receipt.',
         ]);
+    }
+
+    /**
+     * Verify a StoreKit 2 JWS transaction and return its transaction id.
+     *
+     * @throws ValidationException
+     */
+    private function verifyAppStoreJws(string $jws, string $expectedProductId): string
+    {
+        try {
+            $signature = JwsParser::toJws($jws);
+        } catch (\Throwable $e) {
+            throw ValidationException::withMessages(['receipt' => 'Malformed App Store transaction.']);
+        }
+
+        $transaction = new JwsTransactionInfo($signature);
+        $environment = $transaction->getEnvironment();
+
+        // A transaction from a local StoreKit configuration file reports environment
+        // "Xcode" and is signed by a throwaway local CA, not Apple's - the certificate
+        // chain check can never pass for it. Accept those only when a dev/test backend
+        // explicitly opts in; every other environment must pass full signature verification.
+        if ($environment === 'Xcode') {
+            if (! config('services.appstore.allow_xcode_env')) {
+                throw ValidationException::withMessages([
+                    'receipt' => 'Xcode StoreKit transactions are not accepted by this server.',
+                ]);
+            }
+        } else {
+            try {
+                $verified = (new AppStoreJwsVerifier())->verify($signature);
+            } catch (\Throwable $e) {
+                $verified = false;
+            }
+
+            if (! $verified) {
+                throw ValidationException::withMessages([
+                    'receipt' => 'App Store transaction signature could not be verified.',
+                ]);
+            }
+        }
+
+        if ($transaction->getBundleId() !== config('price_tiers.bundle_id')) {
+            throw ValidationException::withMessages([
+                'receipt' => 'App Store transaction is for a different app.',
+            ]);
+        }
+
+        if ($transaction->getProductId() !== $expectedProductId) {
+            throw ValidationException::withMessages([
+                'receipt' => 'App Store transaction does not match the requested product.',
+            ]);
+        }
+
+        if ($transaction->getRevocationDate() !== null) {
+            throw ValidationException::withMessages([
+                'receipt' => 'This App Store transaction has been refunded or revoked.',
+            ]);
+        }
+
+        $transactionId = $transaction->getTransactionId();
+        if ($transactionId === null || $transactionId === '') {
+            throw ValidationException::withMessages([
+                'receipt' => 'App Store transaction is missing a transaction id.',
+            ]);
+        }
+
+        return $transactionId;
     }
 
     /**

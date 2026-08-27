@@ -18,9 +18,11 @@
                 @method('PUT')
 
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Tier Key</label>
-                    <code class="block px-4 py-3 bg-gray-100 rounded-lg text-sm">{{ $priceTier->tier_key }}</code>
-                    <p class="mt-1 text-xs text-gray-500">Tier keys can't be changed after creation — they're baked into the store product id.</p>
+                    <label for="tier_key" class="block text-sm font-semibold text-gray-700 mb-2">Tier Key <span class="text-red-500">*</span></label>
+                    <input type="text" name="tier_key" id="tier_key" value="{{ old('tier_key', $priceTier->tier_key) }}" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 font-mono text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Baked into the store product id (iOS: <code>{{ config('price_tiers.bundle_id') }}.&lt;tier key&gt;</code>, Android: <code>&lt;tier key&gt;</code>). It must exactly match the product you created in App Store Connect / Google Play Console — changing it here will break existing store products unless you update them too.</p>
+                    @error('tier_key')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>
 
                 <div>

@@ -20,9 +20,9 @@
                 <div>
                     <label for="tier_key" class="block text-sm font-semibold text-gray-700 mb-2">Tier Key <span class="text-red-500">*</span></label>
                     <input type="text" name="tier_key" id="tier_key" value="{{ old('tier_key') }}" required
-                        pattern="[a-z0-9_]+" placeholder="e.g., tier_650"
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
-                    <p class="mt-1 text-xs text-gray-500">Lowercase letters, numbers, underscores only. Cannot be changed after creation.</p>
+                        placeholder="e.g., tier_650"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 font-mono text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Baked into the store product id (iOS: <code>{{ config('price_tiers.bundle_id') }}.&lt;tier key&gt;</code>, Android: <code>&lt;tier key&gt;</code>). Must exactly match the product id you created in App Store Connect / Google Play Console.</p>
                     @error('tier_key')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>
 
