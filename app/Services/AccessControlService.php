@@ -38,6 +38,53 @@ class AccessControlService
     }
 
     /**
+     * Consume exactly one unit of whatever grant the user is taking this quiz under -
+     * an attempts purchase, an attempts trial, or a wallet attempt. Call this ONCE,
+     * when a quiz is actually completed, NOT when the questions are fetched: the client
+     * can hit GET /question-set/{id} several times for a single real start (screen
+     * re-render, network retry, stacked post-purchase "Start Quiz" prompts), and
+     * consuming there burned an attempt every time. No-op for free content, day-based
+     * grants, and subscriptions.
+     */
+    public function consumeForCompletedQuiz(?User $user, QuestionSet|QuestionSetPackage $item): void
+    {
+        if (!$user || !$item->is_paid) {
+            return;
+        }
+
+        if ($item instanceof QuestionSet && $item->package_id) {
+            $this->consumeForCompletedQuiz($user, $item->package ?? $item->package()->firstOrFail());
+            return;
+        }
+
+        if ($this->trialService->hasAvailableTrial($user, $item)) {
+            if (($item->trial_type ?? null) === 'attempts') {
+                $this->trialService->consumeTrial($user, $item);
+            }
+            return;
+        }
+
+        $activePurchase = $item instanceof QuestionSetPackage
+            ? Purchase::activePackagePurchase($user->id, $item->id)
+            : Purchase::activeQuestionSetPurchase($user->id, $item->id);
+
+        if ($activePurchase) {
+            if ($activePurchase->access_type === 'attempts') {
+                $activePurchase->increment('attempts_used');
+            }
+            return;
+        }
+
+        if (UserSubscription::where('user_id', $user->id)->active()->exists()) {
+            return;
+        }
+
+        if ($this->walletService->balance($user->id) > 0) {
+            $this->walletService->debit($user, 1, 'consume', $item);
+        }
+    }
+
+    /**
      * Priority: free -> trial -> direct ownership -> active subscription -> attempt
      * wallet -> denied (with a paywall payload describing how to buy access).
      */

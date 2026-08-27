@@ -130,7 +130,10 @@ class QuizController extends Controller
 
         $user = auth('sanctum')->user();
 
-        $access = $this->accessControl->resolveAccess($user, $questionSet);
+        // Read-only gate. The attempt/trial/wallet unit is consumed only when the quiz is
+        // actually completed (see saveQuizAttempt) - fetching the questions must have no
+        // side effects, or a re-render / retry / stacked "Start Quiz" prompt burns extras.
+        $access = $this->accessControl->previewAccess($user, $questionSet);
 
         if (!$access['allowed']) {
             return response()->json([
@@ -337,6 +340,15 @@ class QuizController extends Controller
             'completed_at'        => now(),
             'time_taken_seconds'  => $request->time_taken_seconds,
         ]);
+
+        // Charge one attempt/trial/wallet unit for this completed quiz. Full-category
+        // (question_set_id null) quizzes are always free and never reach this branch.
+        if ($request->question_set_id) {
+            $questionSet = QuestionSet::find($request->question_set_id);
+            if ($questionSet) {
+                $this->accessControl->consumeForCompletedQuiz($request->user(), $questionSet);
+            }
+        }
 
         return response()->json([
             'success' => true,
