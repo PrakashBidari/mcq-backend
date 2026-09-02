@@ -13,11 +13,15 @@ use Illuminate\Support\Facades\Route;
 
 
 // Public routes
-Route::post('/register', [AuthController::class, 'register']);
+// reCAPTCHA-gated: these either send SMTP mail (register / resend-otp / forgot-password)
+// or are public spam vectors (login). The throttle is defence-in-depth against volume.
+Route::post('/register', [AuthController::class, 'register'])->middleware(['recaptcha', 'throttle:6,1']);
+Route::post('/login', [AuthController::class, 'login'])->middleware(['recaptcha', 'throttle:10,1']);
+Route::post('/resend-otp', [AuthController::class, 'resendOtp'])->middleware(['recaptcha', 'throttle:4,1']);
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware(['recaptcha', 'throttle:4,1']); // NEW
+
+// No mail sent here and the user already passed a captcha at the "send code" step.
 Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/resend-otp', [AuthController::class, 'resendOtp']);
-Route::post('/forgot-password', [AuthController::class, 'forgotPassword']); // NEW
 Route::post('/verify-reset-otp', [AuthController::class, 'verifyResetOtp']); // NEW
 Route::post('/reset-password', [AuthController::class, 'resetPassword']); // NEW
 
@@ -72,5 +76,5 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Contact Routes (Public)
 Route::get('/contact/settings', [ContactController::class, 'getSettings']);
-Route::post('/contact/submit', [ContactController::class, 'submit']);
+Route::post('/contact/submit', [ContactController::class, 'submit'])->middleware(['recaptcha', 'throttle:4,1']);
 Route::get('/search/question-sets', [QuizController::class, 'searchQuestionSets']);

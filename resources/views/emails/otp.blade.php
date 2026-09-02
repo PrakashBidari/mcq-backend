@@ -45,13 +45,13 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>MCQ App</h1>
+            <h1>{{ config('app.name') }}</h1>
             <h2>Email Verification</h2>
         </div>
 
         <p>Hello {{ $name }},</p>
 
-        <p>Thank you for registering with MCQ App! Please use the following code to verify your email address:</p>
+        <p>Thank you for registering with {{ config('app.name') }}! Please use the following code to verify your email address:</p>
 
         <div class="otp-box">
             <div class="otp-code">{{ $otp }}</div>
@@ -62,7 +62,7 @@
         <p>If you didn't request this code, please ignore this email.</p>
 
         <div class="footer">
-            <p>&copy; 2026 MCQ App. All rights reserved.</p>
+            <p>&copy; {{ date('Y') }} {{ config('app.name') }}. All rights reserved.</p>
         </div>
     </div>
 </body>

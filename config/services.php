@@ -54,4 +54,12 @@ return [
         'allow_xcode_env' => env('APPSTORE_ALLOW_XCODE_ENV', false),
     ],
 
+    'recaptcha' => [
+        // Set RECAPTCHA_ENABLED=false locally / in CI to bypass verification.
+        'enabled' => env('RECAPTCHA_ENABLED', true),
+        // Secret key from the reCAPTCHA admin console (v2 Invisible). Keep server-side only.
+        'secret' => env('RECAPTCHA_SECRET'),
+        'verify_url' => 'https://www.google.com/recaptcha/api/siteverify',
+    ],
+
 ];

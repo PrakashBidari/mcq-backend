@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Middleware aliases
         $middleware->alias([
             'dashboard' => \App\Http\Middleware\CheckDashboardAccess::class,
+            'recaptcha' => \App\Http\Middleware\VerifyRecaptcha::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

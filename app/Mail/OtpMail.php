@@ -24,7 +24,7 @@ class OtpMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your MCQ App Verification Code',
+            subject: 'Your ' . config('app.name') . ' Verification Code',
         );
     }
 

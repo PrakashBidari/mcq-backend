@@ -43,6 +43,9 @@ return [
             'url' => env('MAIL_URL'),
             'host' => env('MAIL_HOST', '127.0.0.1'),
             'port' => env('MAIL_PORT', 2525),
+            // Kept for compatibility with cPanel-style webmail configs that set
+            // MAIL_ENCRYPTION (ssl for port 465, tls for 587) instead of MAIL_SCHEME.
+            'encryption' => env('MAIL_ENCRYPTION'),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
             'timeout' => null,
