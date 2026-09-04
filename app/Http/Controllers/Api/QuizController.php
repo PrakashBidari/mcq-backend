@@ -116,7 +116,7 @@ class QuizController extends Controller
     }
 
     // Get questions from a specific question set
-    public function getQuestionSet($setId)
+    public function getQuestionSet($setId, Request $request)
     {
         $questionSet = QuestionSet::with([
             'questions' => function ($query) {
@@ -130,9 +130,7 @@ class QuizController extends Controller
 
         $user = auth('sanctum')->user();
 
-        // Read-only gate. The attempt/trial/wallet unit is consumed only when the quiz is
-        // actually completed (see saveQuizAttempt) - fetching the questions must have no
-        // side effects, or a re-render / retry / stacked "Start Quiz" prompt burns extras.
+        // Read-only gate first - refuse outright if there's no access left.
         $access = $this->accessControl->previewAccess($user, $questionSet);
 
         if (!$access['allowed']) {
@@ -143,6 +141,10 @@ class QuizController extends Controller
                 'data'    => $access['paywall'] ?? $this->purchaseRequiredPayload($questionSet),
             ], 403);
         }
+
+        // Snapshot the grant state BEFORE this attempt is charged, so the client can
+        // show "attempt 1 of 3" / "5 days left" for the run they're about to take.
+        $accessSummary = $this->accessControl->accessSummary($user, $questionSet);
 
         $questions = $questionSet->questions->map(function ($question) use ($questionSet) {
             return [
@@ -157,6 +159,18 @@ class QuizController extends Controller
             ];
         });
 
+        // Charge one attempt/trial/wallet unit for this start now that we're actually
+        // handing over playable questions. Deduped by the client's per-start
+        // attempt_key so a retry of the same start is free (see consumeForQuizStart).
+        // Day-based grants and subscriptions are not decremented.
+        if ($questions->isNotEmpty()) {
+            $this->accessControl->consumeForQuizStart(
+                $user,
+                $questionSet,
+                $request->query('attempt_key'),
+            );
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -168,9 +182,9 @@ class QuizController extends Controller
                     'is_paid'     => (bool) $questionSet->is_paid,
                     'price'       => $questionSet->is_paid ? (float) $questionSet->price : null,
                     'time_limit'  => $questionSet->time_limit,   // ← add
-                    // How much of the current grant is left (attempts / days) - shown to
-                    // the user while they take the quiz. null for free content.
-                    'access'      => $this->accessControl->accessSummary($user, $questionSet),
+                    // How much of the grant was left going into this run (attempts /
+                    // days) - shown to the user while they play. null for free content.
+                    'access'      => $accessSummary,
                 ],
                 'questions' => $questions
             ]
@@ -344,14 +358,9 @@ class QuizController extends Controller
             'time_taken_seconds'  => $request->time_taken_seconds,
         ]);
 
-        // Charge one attempt/trial/wallet unit for this completed quiz. Full-category
-        // (question_set_id null) quizzes are always free and never reach this branch.
-        if ($request->question_set_id) {
-            $questionSet = QuestionSet::find($request->question_set_id);
-            if ($questionSet) {
-                $this->accessControl->consumeForCompletedQuiz($request->user(), $questionSet);
-            }
-        }
+        // Note: the paid attempt / trial use / wallet unit for this quiz was already
+        // charged when the questions were served (see getQuestionSet ->
+        // consumeForQuizStart), so completion is just recorded here, not billed.
 
         return response()->json([
             'success' => true,

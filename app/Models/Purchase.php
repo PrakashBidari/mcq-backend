@@ -100,15 +100,24 @@ class Purchase extends Model
 
     public function isActive(): bool
     {
+        // Day-based access: only active while inside the window. A 'days' purchase
+        // with no expiry date is treated as expired (fail closed), never permanent.
+        if ($this->access_type === 'days') {
+            return $this->expires_at !== null && now()->lt($this->expires_at);
+        }
+
+        // Attempt-based access: active only while attempts remain. A missing/zero
+        // access_value means no attempts, so it is not active.
+        if ($this->access_type === 'attempts') {
+            return (int) $this->attempts_used < (int) $this->access_value;
+        }
+
+        // Any other grant that carries an explicit expiry.
         if ($this->expires_at) {
             return now()->lt($this->expires_at);
         }
 
-        if ($this->access_type === 'attempts') {
-            return $this->attempts_used < $this->access_value;
-        }
-
-        // Purchases made before access grants existed - treat as permanent (legacy).
+        // Legacy purchases made before access grants existed - treat as permanent.
         return true;
     }
 }

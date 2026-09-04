@@ -25,22 +25,26 @@
             </div>
         </div>
 
-        <div class="p-6">
-            <table class="w-full">
+        <div class="p-6 overflow-x-auto">
+            <table id="purchasesTable" class="w-full min-w-max">
                 <thead>
                     <tr>
                         <th class="text-left py-2">User</th>
+                        <th class="text-left py-2">Email</th>
                         <th class="text-left py-2">Type</th>
                         <th class="text-left py-2">Item</th>
                         <th class="text-left py-2">Platform</th>
                         <th class="text-left py-2">Price Paid</th>
-                        <th class="text-left py-2">Date</th>
+                        <th class="text-left py-2">Access Left</th>
+                        <th class="text-left py-2">Purchased</th>
+                        <th class="text-left py-2">Expires</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($purchases as $purchase)
+                    @foreach ($purchases as $purchase)
                         <tr class="border-b border-gray-100 hover:bg-gray-50">
                             <td class="py-4">{{ $purchase->user->name ?? '—' }}</td>
+                            <td class="py-4 text-sm text-gray-600">{{ $purchase->user->email ?? '—' }}</td>
                             <td class="py-4">
                                 <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">
                                     {{ ucfirst(str_replace('_', ' ', $purchase->purchase_type)) }}
@@ -51,17 +55,42 @@
                             </td>
                             <td class="py-4 text-sm text-gray-500 uppercase">{{ $purchase->platform }}</td>
                             <td class="py-4 font-semibold">&yen;{{ number_format($purchase->price_paid) }}</td>
-                            <td class="py-4 text-sm text-gray-600">{{ $purchase->purchased_at?->format('M d, Y H:i') }}</td>
+                            <td class="py-4 text-sm">
+                                <span class="{{ ($purchase->access_is_active ?? false) ? 'text-green-700' : 'text-red-600' }}">
+                                    {{ $purchase->access_remaining_label ?? '—' }}
+                                </span>
+                            </td>
+                            <td class="py-4 text-sm text-gray-600" data-order="{{ $purchase->purchased_at?->timestamp }}">
+                                {{ $purchase->purchased_at?->format('M d, Y H:i') ?? '—' }}
+                            </td>
+                            <td class="py-4 text-sm text-gray-600" data-order="{{ $purchase->expires_at?->timestamp ?? 0 }}">
+                                {{ $purchase->expires_at?->format('M d, Y') ?? '—' }}
+                            </td>
                         </tr>
-                    @empty
-                        <tr><td colspan="6" class="py-6 text-center text-gray-500">No purchases yet.</td></tr>
-                    @endforelse
+                    @endforeach
                 </tbody>
             </table>
-
-            <div class="mt-6">
-                {{ $purchases->appends(request()->query())->links() }}
-            </div>
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    $(document).ready(function () {
+        $('#purchasesTable').DataTable({
+            pageLength: 6,
+            lengthMenu: [6, 12, 24, 50],
+            order: [[7, 'desc']],
+            columnDefs: [{ orderable: false, targets: [2] }],
+            language: {
+                search: "Filter:",
+                lengthMenu: "Show _MENU_ per page",
+                info: "Showing _START_ to _END_ of _TOTAL_ purchases",
+                infoEmpty: "No purchases",
+                infoFiltered: "(filtered from _MAX_ total)",
+                zeroRecords: "No matching purchases"
+            }
+        });
+    });
+</script>
+@endpush

@@ -81,10 +81,12 @@ class PurchaseVerificationService
                     'purchased_at'  => now(),
                     // Snapshot what this purchase grants so later admin edits to the item
                     // don't retroactively change what the customer already paid for.
+                    // Guard access_value: a misconfigured item must still grant at
+                    // least 1 attempt / 1 day, never 0 (which would be unusable).
                     'access_type'   => $isItemPurchase ? $target->access_type : null,
-                    'access_value'  => $isItemPurchase ? $target->access_value : null,
+                    'access_value'  => $isItemPurchase ? max(1, (int) $target->access_value) : null,
                     'expires_at'    => ($isItemPurchase && $target->access_type === 'days')
-                        ? now()->addDays($target->access_value)
+                        ? now()->addDays(max(1, (int) $target->access_value))
                         : null,
                 ]
             );

@@ -25,7 +25,12 @@ class PurchaseAdminController extends Controller
             $query->where('purchase_type', $request->type);
         }
 
-        $purchases = $query->orderBy('purchased_at', 'desc')->paginate(50);
+        // Loaded in full - the DataTable on the page does the paging (6/page),
+        // searching and column sorting client-side.
+        $purchases = $query->orderBy('purchased_at', 'desc')->get()
+            ->each(function (Purchase $p) {
+                [$p->access_remaining_label, $p->access_is_active] = $this->accessLabel($p);
+            });
 
         return view('purchases.index', compact('purchases'));
     }
@@ -36,19 +41,68 @@ class PurchaseAdminController extends Controller
             return redirect()->route('dashboard')->with('error', 'You do not have permission to view subscribers.');
         }
 
-        $activeSubscriptions = UserSubscription::with(['user', 'plan'])->active()->get();
-        $activeUserIds = $activeSubscriptions->pluck('user_id')->unique();
+        // Everyone who has bought a question set or package, with what's left of
+        // the grant they paid for. The DataTable on the page pages/filters this.
+        $rows = Purchase::with(['user', 'questionSet', 'package'])
+            ->where('status', 'completed')
+            ->whereIn('purchase_type', ['question_set', 'package'])
+            ->orderByDesc('purchased_at')
+            ->get()
+            ->map(function (Purchase $p) {
+                $item = $p->questionSet ?? $p->package;
+                [$remaining, $active] = $this->accessLabel($p);
+
+                return (object) [
+                    'user_name'  => $p->user->name ?? '—',
+                    'user_email' => $p->user->email ?? '—',
+                    'type'       => $p->purchase_type === 'package' ? 'Package' : 'Question Set',
+                    'item_name'  => $item->name ?? '—',
+                    'remaining'  => $remaining,
+                    'is_active'  => $active,
+                    'taken_at'   => $p->purchased_at,
+                    'expires_at' => $p->expires_at,
+                ];
+            });
 
         $totalUsers = User::where('role', 'user')->count();
         $paidUsersCount = Purchase::where('status', 'completed')->distinct('user_id')->count('user_id');
+        $activeSubscriberCount = UserSubscription::active()->distinct('user_id')->count('user_id');
 
         return view('subscribers.index', [
-            'activeSubscriptions' => $activeSubscriptions,
-            'totalUsers'          => $totalUsers,
-            'activeSubscriberCount' => $activeUserIds->count(),
-            'paidUsersCount'      => $paidUsersCount,
-            'freeUsersCount'      => max(0, $totalUsers - $paidUsersCount),
+            'rows'                  => $rows,
+            'totalUsers'            => $totalUsers,
+            'activeSubscriberCount' => $activeSubscriberCount,
+            'paidUsersCount'        => $paidUsersCount,
+            'freeUsersCount'        => max(0, $totalUsers - $paidUsersCount),
         ]);
+    }
+
+    /**
+     * Human label for how much of a purchase's grant is left, plus whether it's
+     * still usable. Returns [string $label, bool $active].
+     */
+    private function accessLabel(Purchase $p): array
+    {
+        $active = $p->isActive();
+
+        if ($p->access_type === 'attempts') {
+            $total = (int) $p->access_value;
+            $left = max(0, $total - (int) $p->attempts_used);
+            return ["{$left} / {$total} attempts left", $active];
+        }
+
+        if ($p->access_type === 'days') {
+            if (!$p->expires_at) {
+                return ['—', false];
+            }
+            if (now()->gte($p->expires_at)) {
+                return ['Expired', false];
+            }
+            $days = (int) ceil(($p->expires_at->getTimestamp() - now()->getTimestamp()) / 86400);
+            return [$days . ' day' . ($days === 1 ? '' : 's') . ' left', $active];
+        }
+
+        return ['Full access', $active];
     }
 
     public function revenue(Request $request)
@@ -123,9 +177,9 @@ class PurchaseAdminController extends Controller
             'status'          => 'completed',
             'purchased_at'    => now(),
             'access_type'     => $target->access_type,
-            'access_value'    => $target->access_value,
+            'access_value'    => $target->access_type ? max(1, (int) $target->access_value) : null,
             'expires_at'      => $target->access_type === 'days'
-                ? now()->addDays($target->access_value)
+                ? now()->addDays(max(1, (int) $target->access_value))
                 : null,
         ]);
 
