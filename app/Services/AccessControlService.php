@@ -7,6 +7,7 @@ use App\Models\Purchase;
 use App\Models\QuestionSet;
 use App\Models\QuestionSetPackage;
 use App\Models\SubscriptionPlan;
+use App\Models\TrialUsage;
 use App\Models\User;
 use App\Models\UserSubscription;
 
@@ -82,6 +83,96 @@ class AccessControlService
         if ($this->walletService->balance($user->id) > 0) {
             $this->walletService->debit($user, 1, 'consume', $item);
         }
+    }
+
+    /**
+     * Read-only description of the grant the user currently holds for this item, for
+     * showing "attempt 2 of 3" / "expires in 5 days" while they take the quiz. Never
+     * consumes anything. Returns null for free content, guests, or no active access
+     * (the paywall path is handled separately by evaluate()).
+     *
+     * Shape: ['kind' => 'attempts'|'trial_attempts'|'days'|'trial_days'|'subscription'|'unlimited'|'wallet', ...]
+     *  - attempts / trial_attempts: attempts_used, attempts_total, attempts_remaining
+     *  - days / trial_days:         expires_at (ISO 8601), days_remaining
+     *  - wallet:                    attempts_remaining
+     */
+    public function accessSummary(?User $user, QuestionSet|QuestionSetPackage $item): ?array
+    {
+        if ($item instanceof QuestionSet && $item->package_id) {
+            return $this->accessSummary($user, $item->package ?? $item->package()->firstOrFail());
+        }
+
+        if (!$item->is_paid || !$user) {
+            return null;
+        }
+
+        // Trial takes priority - matches evaluate()'s ordering.
+        if ($this->trialService->hasAvailableTrial($user, $item)) {
+            $usage = TrialUsage::where('user_id', $user->id)
+                ->where('trialable_type', get_class($item))
+                ->where('trialable_id', $item->id)
+                ->first();
+
+            if (($item->trial_type ?? null) === 'attempts') {
+                $used = (int) ($usage->attempts_used ?? 0);
+                $total = (int) $item->trial_value;
+                return [
+                    'kind' => 'trial_attempts',
+                    'attempts_used' => $used,
+                    'attempts_total' => $total,
+                    'attempts_remaining' => max(0, $total - $used),
+                ];
+            }
+
+            if (($item->trial_type ?? null) === 'days') {
+                $expiresAt = ($usage && $usage->first_used_at)
+                    ? $usage->first_used_at->copy()->addDays((int) $item->trial_value)
+                    : now()->copy()->addDays((int) $item->trial_value);
+                return [
+                    'kind' => 'trial_days',
+                    'expires_at' => $expiresAt->toIso8601String(),
+                    'days_remaining' => max(0, (int) ceil(($expiresAt->getTimestamp() - now()->getTimestamp()) / 86400)),
+                ];
+            }
+        }
+
+        $activePurchase = $item instanceof QuestionSetPackage
+            ? Purchase::activePackagePurchase($user->id, $item->id)
+            : Purchase::activeQuestionSetPurchase($user->id, $item->id);
+
+        if ($activePurchase) {
+            if ($activePurchase->expires_at) {
+                return [
+                    'kind' => 'days',
+                    'expires_at' => $activePurchase->expires_at->toIso8601String(),
+                    'days_remaining' => max(0, (int) ceil(($activePurchase->expires_at->getTimestamp() - now()->getTimestamp()) / 86400)),
+                ];
+            }
+
+            if ($activePurchase->access_type === 'attempts') {
+                $used = (int) $activePurchase->attempts_used;
+                $total = (int) $activePurchase->access_value;
+                return [
+                    'kind' => 'attempts',
+                    'attempts_used' => $used,
+                    'attempts_total' => $total,
+                    'attempts_remaining' => max(0, $total - $used),
+                ];
+            }
+
+            return ['kind' => 'unlimited']; // legacy permanent purchase
+        }
+
+        if (UserSubscription::where('user_id', $user->id)->active()->exists()) {
+            return ['kind' => 'subscription'];
+        }
+
+        $balance = (int) $this->walletService->balance($user->id);
+        if ($balance > 0) {
+            return ['kind' => 'wallet', 'attempts_remaining' => $balance];
+        }
+
+        return null;
     }
 
     /**

@@ -168,6 +168,9 @@ class QuizController extends Controller
                     'is_paid'     => (bool) $questionSet->is_paid,
                     'price'       => $questionSet->is_paid ? (float) $questionSet->price : null,
                     'time_limit'  => $questionSet->time_limit,   // ← add
+                    // How much of the current grant is left (attempts / days) - shown to
+                    // the user while they take the quiz. null for free content.
+                    'access'      => $this->accessControl->accessSummary($user, $questionSet),
                 ],
                 'questions' => $questions
             ]
