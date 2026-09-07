@@ -102,7 +102,7 @@ class QuestionSetController extends Controller
             'is_active'     => 'boolean',
             'is_paid'       => 'boolean',
             'price_tier_id' => 'nullable|exists:price_tiers,id|required_if:is_paid,1',
-            'access_type'   => 'nullable|in:attempts,days|required_if:is_paid,1',
+            'access_type'   => 'nullable|in:attempts,days,hours,minutes|required_if:is_paid,1',
             'access_value'  => 'nullable|integer|min:1|required_if:is_paid,1',
             'time_limit'    => 'nullable|numeric|min:0.1|max:180',
             'trial_enabled' => 'boolean',

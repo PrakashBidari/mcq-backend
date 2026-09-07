@@ -205,11 +205,24 @@
                                     class="h-4 w-4 border-gray-300 text-purple-600 focus:ring-purple-500">
                                 <span class="ml-2 text-sm text-gray-700">Days</span>
                             </label>
+                            <label class="flex cursor-pointer items-center">
+                                <input type="radio" name="access_type" value="hours"
+                                    {{ old('access_type') === 'hours' ? 'checked' : '' }}
+                                    class="h-4 w-4 border-gray-300 text-purple-600 focus:ring-purple-500">
+                                <span class="ml-2 text-sm text-gray-700">Hours</span>
+                            </label>
+                            <label class="flex cursor-pointer items-center">
+                                <input type="radio" name="access_type" value="minutes"
+                                    {{ old('access_type') === 'minutes' ? 'checked' : '' }}
+                                    class="h-4 w-4 border-gray-300 text-purple-600 focus:ring-purple-500">
+                                <span class="ml-2 text-sm text-gray-700">Minutes</span>
+                            </label>
                         </div>
+                        <p class="mt-1 text-xs text-gray-500">Pick one unit only. Attempts = number of quiz plays; days / hours / minutes = a time window that starts at purchase.</p>
                         <input type="number" name="access_value" id="access_value" min="1"
                             value="{{ old('access_value') }}"
                             class="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500"
-                            placeholder="e.g. 3 attempts, or 3 days">
+                            placeholder="e.g. 3 attempts, 3 days, 6 hours, or 30 minutes">
                         @error('access_value')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror

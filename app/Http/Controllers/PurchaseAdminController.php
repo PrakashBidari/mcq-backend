@@ -91,15 +91,20 @@ class PurchaseAdminController extends Controller
             return ["{$left} / {$total} attempts left", $active];
         }
 
-        if ($p->access_type === 'days') {
+        if (in_array($p->access_type, ['days', 'hours', 'minutes'], true)) {
             if (!$p->expires_at) {
                 return ['—', false];
             }
             if (now()->gte($p->expires_at)) {
                 return ['Expired', false];
             }
-            $days = (int) ceil(($p->expires_at->getTimestamp() - now()->getTimestamp()) / 86400);
-            return [$days . ' day' . ($days === 1 ? '' : 's') . ' left', $active];
+            $secondsLeft = $p->expires_at->getTimestamp() - now()->getTimestamp();
+            [$unit, $count] = match ($p->access_type) {
+                'minutes' => ['minute', (int) ceil($secondsLeft / 60)],
+                'hours'   => ['hour', (int) ceil($secondsLeft / 3600)],
+                default   => ['day', (int) ceil($secondsLeft / 86400)],
+            };
+            return [$count . ' ' . $unit . ($count === 1 ? '' : 's') . ' left', $active];
         }
 
         return ['Full access', $active];
@@ -178,9 +183,12 @@ class PurchaseAdminController extends Controller
             'purchased_at'    => now(),
             'access_type'     => $target->access_type,
             'access_value'    => $target->access_type ? max(1, (int) $target->access_value) : null,
-            'expires_at'      => $target->access_type === 'days'
-                ? now()->addDays(max(1, (int) $target->access_value))
-                : null,
+            'expires_at'      => match ($target->access_type) {
+                'days'    => now()->addDays(max(1, (int) $target->access_value)),
+                'hours'   => now()->addHours(max(1, (int) $target->access_value)),
+                'minutes' => now()->addMinutes(max(1, (int) $target->access_value)),
+                default   => null,
+            },
         ]);
 
         \Log::info('Purchase manually granted by admin', [

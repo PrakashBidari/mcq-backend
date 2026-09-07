@@ -100,9 +100,10 @@ class Purchase extends Model
 
     public function isActive(): bool
     {
-        // Day-based access: only active while inside the window. A 'days' purchase
-        // with no expiry date is treated as expired (fail closed), never permanent.
-        if ($this->access_type === 'days') {
+        // Time-based access (days / hours / minutes): only active while inside the
+        // window. A time-based purchase with no expiry date is treated as expired
+        // (fail closed), never permanent.
+        if (in_array($this->access_type, ['days', 'hours', 'minutes'], true)) {
             return $this->expires_at !== null && now()->lt($this->expires_at);
         }
 

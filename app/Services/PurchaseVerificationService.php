@@ -12,6 +12,7 @@ use App\Models\UserSubscription;
 use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Imdhemy\AppStore\Exceptions\InvalidReceiptException;
 use Imdhemy\AppStore\Jws\AppStoreJwsVerifier;
@@ -46,11 +47,21 @@ class PurchaseVerificationService
     ): Purchase {
         [$amount, $currency] = $this->resolvePrice($purchaseType, $target, $tierKey);
 
-        $transactionId = match ($platform) {
+        [$transactionId, $isSandbox] = match ($platform) {
             'ios'     => $this->verifyAppStore($receiptOrToken, $productId),
             'android' => $this->verifyGooglePlay($productId, $receiptOrToken),
             default   => throw ValidationException::withMessages(['platform' => 'Unsupported platform.']),
         };
+
+        // Production store transaction ids are globally unique and stable, so they are
+        // the idempotency key as-is. Sandbox / local StoreKit ids are NOT: they get
+        // recycled every time a tester resets the StoreKit transaction manager or
+        // reinstalls, which made firstOrCreate() below hand back a stale, already-spent
+        // Purchase row (or throw "already used for a different purchase"). For those we
+        // namespace the id so every sandbox purchase records a fresh, full grant.
+        $idempotencyId = $isSandbox
+            ? $transactionId . ':sandbox:' . Str::random(24)
+            : $transactionId;
 
         $targetColumn = $this->targetColumn($purchaseType);
         $isItemPurchase = in_array($purchaseType, ['question_set', 'package'], true);
@@ -64,10 +75,10 @@ class PurchaseVerificationService
         // after commit and its failure is logged, not fatal.
         $purchase = DB::transaction(function () use (
             $user, $purchaseType, $target, $platform, $productId, $tierKey,
-            $transactionId, $amount, $currency, $targetColumn, $isItemPurchase
+            $idempotencyId, $amount, $currency, $targetColumn, $isItemPurchase
         ) {
             $purchase = Purchase::firstOrCreate(
-                ['transaction_id' => $transactionId],
+                ['transaction_id' => $idempotencyId],
                 [
                     'user_id'       => $user->id,
                     'purchase_type' => $purchaseType,
@@ -85,8 +96,8 @@ class PurchaseVerificationService
                     // least 1 attempt / 1 day, never 0 (which would be unusable).
                     'access_type'   => $isItemPurchase ? $target->access_type : null,
                     'access_value'  => $isItemPurchase ? max(1, (int) $target->access_value) : null,
-                    'expires_at'    => ($isItemPurchase && $target->access_type === 'days')
-                        ? now()->addDays(max(1, (int) $target->access_value))
+                    'expires_at'    => $isItemPurchase
+                        ? $this->resolveExpiry($target->access_type, (int) $target->access_value)
                         : null,
                 ]
             );
@@ -117,6 +128,24 @@ class PurchaseVerificationService
         }
 
         return $purchase;
+    }
+
+    /**
+     * When a time-based grant (days / hours / minutes) is bought, snapshot its end
+     * time onto the purchase now. Attempt-based grants have no expiry (they run out
+     * by count, not by clock), so this returns null for them. A misconfigured value
+     * is floored at 1 unit so the window is never zero-length.
+     */
+    private function resolveExpiry(?string $accessType, int $value): ?\Carbon\CarbonInterface
+    {
+        $value = max(1, $value);
+
+        return match ($accessType) {
+            'days'    => now()->addDays($value),
+            'hours'   => now()->addHours($value),
+            'minutes' => now()->addMinutes($value),
+            default   => null,
+        };
     }
 
     private function targetColumn(string $purchaseType): string
@@ -175,11 +204,13 @@ class PurchaseVerificationService
     }
 
     /**
+     * @return array{0: string, 1: bool} [transactionId, isSandbox]
+     *
      * @throws ValidationException
      * @throws InvalidReceiptException
      * @throws GuzzleException
      */
-    private function verifyAppStore(string $receiptData, string $expectedProductId): string
+    private function verifyAppStore(string $receiptData, string $expectedProductId): array
     {
         // StoreKit 2 clients (react-native-iap v15+) send a JWS-signed transaction:
         // three base64url segments separated by dots (header.payload.signature). Older
@@ -196,7 +227,10 @@ class PurchaseVerificationService
 
         foreach ($inApp as $transaction) {
             if ($transaction->getProductId() === $expectedProductId) {
-                return $transaction->getTransactionId();
+                // Legacy verifyReceipt path - effectively unused now that clients send
+                // JWS. Treat as production (strict idempotency); a legacy sandbox client
+                // would just fall back to the pre-existing behaviour, no regression.
+                return [$transaction->getTransactionId(), false];
             }
         }
 
@@ -208,9 +242,11 @@ class PurchaseVerificationService
     /**
      * Verify a StoreKit 2 JWS transaction and return its transaction id.
      *
+     * @return array{0: string, 1: bool} [transactionId, isSandbox]
+     *
      * @throws ValidationException
      */
-    private function verifyAppStoreJws(string $jws, string $expectedProductId): string
+    private function verifyAppStoreJws(string $jws, string $expectedProductId): array
     {
         try {
             $signature = JwsParser::toJws($jws);
@@ -270,14 +306,21 @@ class PurchaseVerificationService
             ]);
         }
 
-        return $transactionId;
+        // "Xcode" = local .storekit config, "Sandbox" = TestFlight / sandbox account.
+        // Both recycle transaction ids across test runs, so they must not be used as a
+        // bare idempotency key (see verifyAndRecord).
+        $isSandbox = in_array($environment, ['Xcode', 'Sandbox'], true);
+
+        return [$transactionId, $isSandbox];
     }
 
     /**
+     * @return array{0: string, 1: bool} [transactionId, isSandbox]
+     *
      * @throws ValidationException
      * @throws GuzzleException
      */
-    private function verifyGooglePlay(string $productId, string $purchaseToken): string
+    private function verifyGooglePlay(string $productId, string $purchaseToken): array
     {
         $purchase = Product::googlePlay()
             ->id($productId)
@@ -290,8 +333,14 @@ class PurchaseVerificationService
             ]);
         }
 
+        // purchaseType is only set for non-standard purchases: 0 = license-tester
+        // ("test") purchase. Those testers re-buy the same SKU repeatedly during QA,
+        // so treat them like a sandbox transaction for idempotency purposes.
+        $isSandbox = method_exists($purchase, 'getPurchaseType')
+            && $purchase->getPurchaseType() === 0;
+
         // The purchase token is unique per purchase and is the safest idempotency key -
         // orderId can be absent for some purchase types.
-        return $purchaseToken;
+        return [$purchaseToken, $isSandbox];
     }
 }

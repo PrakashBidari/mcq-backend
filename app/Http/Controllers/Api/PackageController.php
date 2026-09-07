@@ -81,6 +81,13 @@ class PackageController extends Controller
             // separate Free Trial button, not the post-purchase Start button.
             'is_owned' => $access['allowed'] && $access['reason'] !== 'trial',
             'trial_available' => $access['reason'] === 'trial',
+            // Attempts left / expiry of the grant the user currently holds, so the
+            // card can show a live "3 attempts left" / "expires in 5h" badge under
+            // the Owned tag. null when not owned / not on trial. Read-only. Skipped
+            // for free / locked packages so the list doesn't pay for an unused summary.
+            'access' => ($access['allowed'] && $access['reason'] !== 'free')
+                ? $this->accessControl->accessSummary($user, $package)
+                : null,
         ];
     }
 }

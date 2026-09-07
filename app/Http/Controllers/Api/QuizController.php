@@ -116,7 +116,7 @@ class QuizController extends Controller
     }
 
     // Get questions from a specific question set
-    public function getQuestionSet($setId, Request $request)
+    public function getQuestionSet($setId)
     {
         $questionSet = QuestionSet::with([
             'questions' => function ($query) {
@@ -142,8 +142,11 @@ class QuizController extends Controller
             ], 403);
         }
 
-        // Snapshot the grant state BEFORE this attempt is charged, so the client can
-        // show "attempt 1 of 3" / "5 days left" for the run they're about to take.
+        // Snapshot the grant state the user is starting this run under, so the client
+        // can show "attempt 1 of 3" / "5 days left" while they play. This endpoint is a
+        // read-only gate: the attempt/trial/wallet unit is charged only when the quiz
+        // is actually completed (see saveQuizAttempt), so a re-render / retry / stacked
+        // post-purchase "Start Quiz" prompt can't silently burn a paid attempt.
         $accessSummary = $this->accessControl->accessSummary($user, $questionSet);
 
         $questions = $questionSet->questions->map(function ($question) use ($questionSet) {
@@ -158,18 +161,6 @@ class QuizController extends Controller
                 'explanation'   => $question->explanation ?? '',
             ];
         });
-
-        // Charge one attempt/trial/wallet unit for this start now that we're actually
-        // handing over playable questions. Deduped by the client's per-start
-        // attempt_key so a retry of the same start is free (see consumeForQuizStart).
-        // Day-based grants and subscriptions are not decremented.
-        if ($questions->isNotEmpty()) {
-            $this->accessControl->consumeForQuizStart(
-                $user,
-                $questionSet,
-                $request->query('attempt_key'),
-            );
-        }
 
         return response()->json([
             'success' => true,
@@ -226,6 +217,14 @@ class QuizController extends Controller
             'is_owned'        => $access['allowed'] && $access['reason'] !== 'trial',
             'trial_available' => $access['reason'] === 'trial',
             'questions_count' => $set->questions_count ?? $set->questions()->count(),
+            // Attempts left / expiry of the grant the user currently holds, so the
+            // card can show a live "3 attempts left" / "expires in 5h" badge under
+            // the Owned tag. For a package-gated set this reflects the package grant.
+            // null when not owned / not on trial. Read-only. Skipped entirely for
+            // free / locked sets so the list doesn't pay for a summary it won't use.
+            'access'          => ($access['allowed'] && $access['reason'] !== 'free')
+                ? $this->accessControl->accessSummary($user, $set)
+                : null,
         ];
     }
 
@@ -335,6 +334,10 @@ class QuizController extends Controller
             'total_questions'     => 'required|integer|min:1',
             'answers'             => 'required|array',
             'time_taken_seconds'  => 'nullable|integer|min:0',
+            // Per-start id from the client (generated when the quiz was started). The
+            // same key is only ever charged once, so a retry of this save call - or a
+            // duplicate submit - does not burn a second paid attempt.
+            'attempt_key'         => 'nullable|string|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -358,9 +361,22 @@ class QuizController extends Controller
             'time_taken_seconds'  => $request->time_taken_seconds,
         ]);
 
-        // Note: the paid attempt / trial use / wallet unit for this quiz was already
-        // charged when the questions were served (see getQuestionSet ->
-        // consumeForQuizStart), so completion is just recorded here, not billed.
+        // Charge one attempt / trial use / wallet unit for this completed quiz. Done
+        // here (not when the questions were fetched) so that abandoning a quiz, a
+        // screen re-render, a network retry, or a stacked post-purchase "Start Quiz"
+        // prompt never silently spends a paid attempt. Deduped by attempt_key so a
+        // resent save call is free. No-op for free content, day-based grants and
+        // active subscriptions.
+        if ($request->question_set_id) {
+            $questionSet = QuestionSet::find($request->question_set_id);
+            if ($questionSet) {
+                $this->accessControl->consumeForQuizPlay(
+                    $request->user(),
+                    $questionSet,
+                    $request->input('attempt_key'),
+                );
+            }
+        }
 
         return response()->json([
             'success' => true,
