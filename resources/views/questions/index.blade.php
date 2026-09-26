@@ -13,6 +13,14 @@
                 <p class="mt-1 text-sm text-gray-600">Manage quiz questions across all sets</p>
             </div>
 
+            <div class="flex items-center gap-2">
+            <a href="{{ route('paragraphs.index') }}"
+                class="flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-4 py-2 text-purple-700 transition hover:bg-purple-100">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h10M4 18h10"></path>
+                </svg>
+                Paragraphs
+            </a>
             @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('create', 'Question'))
                 <a href="{{ route('questions.create') }}"
                     class="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-white transition hover:bg-purple-700">
@@ -22,6 +30,7 @@
                     Add Question
                 </a>
             @endif
+            </div>
         </div>
 
         <!-- Filters -->
@@ -100,12 +109,23 @@
                     @foreach ($questions as $question)
                         <tr class="border-b border-gray-100 hover:bg-gray-50">
                             <td class="max-w-md py-4">
-                                <p class="mb-1 font-semibold text-gray-800">{{ Str::limit($question->question, 80) }}</p>
+                                @if ($question->paragraph)
+                                    <a href="{{ route('paragraphs.edit', $question->paragraph_id) }}"
+                                        class="mb-1 inline-block rounded bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
+                                        Paragraph #{{ $question->paragraph_id }}
+                                    </a>
+                                @endif
+                                <p class="mb-1 font-semibold text-gray-800">
+                                    {{ Str::limit($question->question, 80) }}
+                                    @if ($question->image)
+                                        <span class="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-normal text-gray-500">🖼 image</span>
+                                    @endif
+                                </p>
                                 <div class="mt-2 flex flex-wrap gap-1">
                                     @foreach ($question->options as $index => $option)
                                         <span
                                             class="{{ $index == $question->correct_answer ? 'bg-green-100 text-green-700 font-semibold' : 'bg-gray-100 text-gray-600' }} rounded px-2 py-1 text-xs">
-                                            {{ chr(65 + $index) }}: {{ Str::limit($option->option_text, 20) }}
+                                            {{ chr(65 + $index) }}: {{ Str::limit($option->option_text ?? '', 20) }}@if ($option->option_image) 🖼@endif
                                         </span>
                                     @endforeach
                                 </div>

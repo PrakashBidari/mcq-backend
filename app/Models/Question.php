@@ -15,7 +15,19 @@ class Question extends Model
         'difficulty',
         'correct_answer',
         'position',
+        'paragraph_id',
+        'image',
     ];
+
+    public function paragraph()
+    {
+        return $this->belongsTo(Paragraph::class);
+    }
+
+    public function getImageUrlAttribute(): ?string
+    {
+        return $this->image ? url('storage/' . $this->image) : null;
+    }
 
     public function options()
     {

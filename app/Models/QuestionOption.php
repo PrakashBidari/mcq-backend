@@ -13,7 +13,13 @@ class QuestionOption extends Model
         'question_id',
         'option_text',
         'option_index',
+        'option_image',
     ];
+
+    public function getImageUrlAttribute(): ?string
+    {
+        return $this->option_image ? url('storage/' . $this->option_image) : null;
+    }
 
     public function question()
     {
