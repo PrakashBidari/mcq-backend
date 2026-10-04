@@ -202,7 +202,7 @@
         ['key' => 'quiz', 'label' => 'Quiz', 'items' => [
             ['Categories', 'tag', route('categories.index'), $navIs('categories.*'), $navCan('Category')],
             ['Question Sets', 'folder', route('question-sets.index'), $navIs('question-sets.*'), $navCan('QuestionSet')],
-            ['Questions', 'question', route('questions.index'), $navIs('questions.*'), $navCan('Question')],
+            ['Questions', 'question', route('questions.index'), $navIs('questions.*', 'paragraphs.*'), $navCan('Question')],
             ['Packages', 'cube', route('packages.index'), $navIs('packages.*'), $navCan('Package')],
         ]],
         ['key' => 'books', 'label' => 'Books', 'items' => [

@@ -16,7 +16,7 @@ class QuestionController extends Controller
 
     public function index(Request $request)
     {
-        $query = Question::with(['options', 'questionSets.category']);
+        $query = Question::with(['options', 'questionSets.category.parent', 'paragraph']);
 
         // Filter by category (through question sets) - includes everything nested under it
         if ($request->filled('category')) {
