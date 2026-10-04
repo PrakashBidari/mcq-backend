@@ -13,6 +13,7 @@ use App\Http\Controllers\CategoryManagementController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ContactMessageController;
 use App\Http\Controllers\ContactSettingController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FaqController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\PriceTierController;
@@ -105,9 +106,8 @@ require __DIR__ . '/auth.php';
 Route::middleware(['auth', 'dashboard'])->prefix('dashboard')->group(function () {
 
     // Dashboard Home
-    Route::get('/', function () {
-        return view('dashboard');
-    })->name('dashboard');
+    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('chart-data', [DashboardController::class, 'chartData'])->name('dashboard.chart-data');
 
     // Categories CRUD
     Route::resource('categories', CategoryController::class);

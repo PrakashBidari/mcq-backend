@@ -78,11 +78,11 @@
                         <option value="">None — this is a top-level category (e.g. SSW, JLPT)</option>
                         @foreach ($parentCategories as $parent)
                             <option value="{{ $parent->id }}" {{ old('parent_id') == $parent->id ? 'selected' : '' }}>
-                                {{ $parent->name }}
+                                {{ str_repeat('- ', $parent->depth) }}{{ $parent->name }}
                             </option>
                         @endforeach
                     </select>
-                    <p class="mt-1 text-xs text-gray-500">Leave empty for a top-level category. Choose a parent to make this a subcategory (e.g. Hotel under SSW).</p>
+                    <p class="mt-1 text-xs text-gray-500">Leave empty for a top-level category. Choose any category as the parent to nest this one under it - there is no limit on depth (e.g. SSW &rarr; Hotel &rarr; Front Desk).</p>
                     @error('parent_id')
                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                     @enderror

@@ -11,7 +11,7 @@
         </div>
 
         <div class="rounded-lg bg-white shadow-sm"
-            x-data="packageForm({{ $categories->toJson() }}, {{ $package->category_id }}, {{ $availableSets->toJson() }}, {{ $package->questionSets->pluck('id')->toJson() }})">
+            x-data="packageForm(@js($categories), @js($selectedPath), {{ $availableSets->toJson() }})">
             <div class="border-b border-gray-200 p-6">
                 <h3 class="text-xl font-bold text-gray-800">Edit Package</h3>
                 <p class="mt-1 text-sm text-gray-600">Update package details and its question sets</p>
@@ -29,29 +29,30 @@
                     @error('name')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>
 
-                <!-- Category -->
+                <!-- Category (any depth) -->
                 <div>
-                    <label for="category_id" class="mb-2 block text-sm font-semibold text-gray-700">Category <span class="text-red-500">*</span></label>
-                    <select name="category_id" id="category_id" x-model="categoryId" @change="onCategoryChange()" required
-                        class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500">
-                        <option value="">Select a category</option>
-                        <template x-for="cat in categories" :key="cat.id">
-                            <option :value="cat.id" x-text="cat.name" :selected="cat.id == categoryId"></option>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <template x-for="(options, level) in levels" :key="level">
+                            <div>
+                            <label class="mb-2 block text-sm font-semibold text-gray-700">
+                                <span x-text="level === 0 ? 'Category' : 'Subcategory (level ' + (level + 1) + ')'"></span>
+                                <span class="text-red-500" x-show="level === 0">*</span>
+                                <span class="ml-1 font-normal text-gray-400" x-show="level > 0">— optional</span>
+                            </label>
+                            <select :required="level === 0" @change="selectCategory(level, $event.target.value)"
+                                class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500">
+                                <option value="" x-text="level === 0 ? 'Select a category' : 'None'"></option>
+                                <template x-for="opt in options" :key="opt.id">
+                                    <option :value="opt.id" x-text="opt.name" :selected="opt.id == path[level]"></option>
+                                </template>
+                            </select>
+                            </div>
                         </template>
-                    </select>
-                    @error('category_id')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-                </div>
+                    </div>
 
-                <!-- Subcategory -->
-                <div x-show="subcategories.length > 0">
-                    <label for="subcategory_id" class="mb-2 block text-sm font-semibold text-gray-700">Subcategory</label>
-                    <select name="subcategory_id" id="subcategory_id" x-model="subcategoryId" @change="onSubcategoryChange()"
-                        class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500">
-                        <option value="">None</option>
-                        <template x-for="sub in subcategories" :key="sub.id">
-                            <option :value="sub.id" x-text="sub.name"></option>
-                        </template>
-                    </select>
+                    <input type="hidden" name="category_id" :value="categoryId">
+                    <input type="hidden" name="subcategory_id" :value="subcategoryId">
+                    @error('category_id')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                     @error('subcategory_id')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>
 
@@ -258,39 +259,51 @@
             }
         }
 
-        function packageForm(categories, initialCategoryId, initialAvailableSets, initialSelectedIds) {
+        function packageForm(categories, initialPath, initialAvailableSets) {
             return {
                 categories: categories,
-                categoryId: '{{ old('category_id') }}' || initialCategoryId,
-                subcategoryId: '{{ old('subcategory_id', $package->subcategory_id) }}',
-                subcategories: [],
+                // Selected category ids, top-level first
+                path: initialPath || [],
                 availableSets: initialAvailableSets,
                 selectedSetIds: {!! json_encode(array_map('intval', old('question_set_ids', $package->questionSets->pluck('id')->all()))) !!},
 
-                init() {
-                    const cat = this.categories.find(c => c.id == this.categoryId);
-                    this.subcategories = cat ? cat.children : [];
+                // One entry per dropdown: the top-level categories, then the children of
+                // each category picked so far.
+                get levels() {
+                    const levels = [this.categories];
+                    let options = this.categories;
+
+                    for (const id of this.path) {
+                        const node = options.find(c => c.id == id);
+                        if (!node || !node.children.length) break;
+                        options = node.children;
+                        levels.push(options);
+                    }
+
+                    return levels;
                 },
 
-                onCategoryChange() {
-                    this.subcategoryId = '';
-                    this.selectedSetIds = [];
-
-                    const cat = this.categories.find(c => c.id == this.categoryId);
-                    this.subcategories = cat ? cat.children : [];
-
-                    this.fetchAvailableSets();
+                // Stored as the top-level category plus (when one is picked) the deepest
+                // category chosen under it.
+                get categoryId() {
+                    return this.path.length ? this.path[0] : '';
                 },
 
-                onSubcategoryChange() {
+                get subcategoryId() {
+                    return this.path.length > 1 ? this.path[this.path.length - 1] : '';
+                },
+
+                selectCategory(level, value) {
+                    this.path = this.path.slice(0, level);
+                    if (value) this.path.push(Number(value));
+
                     this.selectedSetIds = [];
                     this.fetchAvailableSets();
                 },
 
                 fetchAvailableSets() {
                     // Question sets are tagged with whichever category they actually live
-                    // under - the subcategory itself when one is picked, otherwise the
-                    // top-level category.
+                    // under - the deepest category picked.
                     const effectiveCategoryId = this.subcategoryId || this.categoryId;
 
                     if (!effectiveCategoryId) {

@@ -24,7 +24,7 @@
                     <label class="mb-1 block text-xs font-semibold text-gray-700">Category</label>
                     <select id="categoryFilter" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
                         <option value="">All Categories</option>
-                        @foreach ($categories as $category)
+                        @foreach ($categories->where('depth', 0) as $category)
                             <option value="{{ $category->id }}">{{ $category->name }}</option>
                         @endforeach
                     </select>
@@ -33,10 +33,8 @@
                     <label class="mb-1 block text-xs font-semibold text-gray-700">Subcategory</label>
                     <select id="subcategoryFilter" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
                         <option value="">All Subcategories</option>
-                        @foreach ($categories as $category)
-                            @foreach ($category->children as $sub)
-                                <option value="{{ $sub->id }}" data-parent="{{ $category->id }}">{{ $sub->name }}</option>
-                            @endforeach
+                        @foreach ($categories->where('depth', '>', 0) as $sub)
+                            <option value="{{ $sub->id }}" data-parent="{{ $sub->root_id }}">{{ $sub->sub_path }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -70,7 +68,7 @@
                                 {{ $package->category->name ?? '—' }}
                             </td>
                             <td class="py-4 text-sm text-gray-600" data-id="{{ $package->subcategory_id }}">
-                                {{ $package->subcategory->name ?? '—' }}
+                                {{ $package->subcategory?->pathName(' → ', false) ?? '—' }}
                             </td>
                             <td class="py-4">
                                 <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold">{{ $package->question_sets_count }} sets</span>

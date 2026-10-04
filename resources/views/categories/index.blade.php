@@ -45,13 +45,14 @@
                                     <ion-icon name="{{ $category->icon ?? 'help-circle' }}" style="font-size: 24px; color: {{ $category->color }};"></ion-icon>
                                 </div>
                             </td>
-                            <td class="py-4">
+                            {{-- Sorted by full path so every category sits right under its parent --}}
+                            <td class="py-4" data-order="{{ $category->pathName(' / ') }}">
                                 <div class="flex items-center gap-3">
                                     <div class="w-3 h-3 rounded-full" style="background-color: {{ $category->color }};"></div>
                                     <span class="font-semibold text-gray-800">
-                                        @if ($category->parent)
-                                            <span class="text-gray-400">{{ $category->parent->name }} &rarr;</span>
-                                        @endif
+                                        @foreach ($category->ancestors() as $ancestor)
+                                            <span class="text-gray-400">{{ $ancestor->name }} &rarr;</span>
+                                        @endforeach
                                         {{ $category->name }}
                                     </span>
                                     @if ($category->children_count > 0)
@@ -114,7 +115,7 @@
     $(document).ready(function() {
         $('#categoriesTable').DataTable({
             pageLength: 10,
-            order: [[5, 'desc']], // Sort by created date
+            order: [[1, 'asc']], // Sort by category path (parents above their children)
             columnDefs: [
                 { orderable: false, targets: [0, 6] } // Disable sorting on Icon and Actions
             ],

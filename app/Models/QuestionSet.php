@@ -25,6 +25,7 @@ class QuestionSet extends Model
         'access_type',
         'access_value',
         'time_limit',
+        'pass_percentage',
     ];
 
     protected $casts = [
@@ -35,6 +36,7 @@ class QuestionSet extends Model
         'trial_value'   => 'integer',
         'access_value'  => 'integer',
         'time_limit'    => 'integer',
+        'pass_percentage' => 'integer',
     ];
 
     public function category()

@@ -13,6 +13,7 @@ use App\Models\Category;
 use App\Models\Faq;
 use App\Models\Question;
 use App\Models\QuestionSet;
+use App\Models\QuestionSetPackage;
 use App\Models\UserQuizAttempt;
 use App\Services\AccessControlService;
 use Illuminate\Http\Request;
@@ -27,67 +28,63 @@ class QuizController extends Controller
     // Get top-level categories (exam types, e.g. SSW / JLPT) with question set counts
     public function getCategories()
     {
-        $categories = Category::whereNull('parent_id')
-            ->withCount('children')
-            ->get()
-            ->each(function ($category) {
-                $category->has_children = $category->children_count > 0;
-            });
-
-        // Question sets live on leaf subcategories, not necessarily directly on the
-        // top-level category (e.g. SSW/JLPT have 0 sets of their own - their sets all
-        // belong to their subcategories) - so a parent's displayed counts must roll up
-        // its children's counts too, not just count $category->questionSets directly.
-        $counts = QuestionSet::where('is_active', true)
-            ->selectRaw('category_id, COUNT(*) as total, SUM(is_paid = 0) as free, SUM(is_paid = 1) as paid')
-            ->groupBy('category_id')
-            ->get()
-            ->keyBy('category_id');
-
-        $childrenByParent = Category::whereNotNull('parent_id')->get(['id', 'parent_id'])->groupBy('parent_id');
-
-        $categories->each(function ($category) use ($counts, $childrenByParent) {
-            $categoryIds = collect([$category->id])
-                ->merge($childrenByParent->get($category->id, collect())->pluck('id'));
-
-            $category->question_sets_count = (int) $categoryIds->sum(fn ($id) => $counts->get($id)?->total ?? 0);
-            $category->free_sets_count     = (int) $categoryIds->sum(fn ($id) => $counts->get($id)?->free ?? 0);
-            $category->paid_sets_count     = (int) $categoryIds->sum(fn ($id) => $counts->get($id)?->paid ?? 0);
-        });
+        $categories = Category::whereNull('parent_id')->get();
 
         return response()->json([
             'success' => true,
-            'data' => $categories
+            'data' => $this->withRolledUpCounts($categories)
         ]);
     }
 
-    // Get subcategories of a top-level category (e.g. SSW -> Hotel/Restaurant/...)
+    // Get the direct children of a category at any depth (e.g. SSW -> Hotel/Restaurant/...,
+    // then Hotel -> Front Desk/...). A child with has_children=true is drilled into with
+    // this same endpoint; one without is a leaf whose question sets/packages are listed.
     public function getSubcategories($categoryId)
     {
         $category = Category::findOrFail($categoryId);
 
-        $subcategories = Category::where('parent_id', $categoryId)
-            ->withCount([
-                'questionSets',
-                'questionSets as free_sets_count' => function ($query) {
-                    $query->where('is_paid', false)->where('is_active', true);
-                },
-                'questionSets as paid_sets_count' => function ($query) {
-                    $query->where('is_paid', true)->where('is_active', true);
-                },
-                'packages as packages_count' => function ($query) {
-                    $query->where('is_active', true);
-                },
-            ])
-            ->get();
+        $subcategories = Category::where('parent_id', $categoryId)->get();
 
         return response()->json([
             'success' => true,
             'data' => [
                 'category'      => $category,
-                'subcategories' => $subcategories,
+                // Top-level category first, down to this category's direct parent
+                'ancestors'     => $category->ancestors()->values(),
+                'subcategories' => $this->withRolledUpCounts($subcategories),
             ],
         ]);
+    }
+
+    // Question sets and packages live on whichever category they were assigned to,
+    // which can be any level of the tree (e.g. SSW/JLPT have 0 sets of their own - their
+    // sets all belong to categories nested below them) - so a category's displayed
+    // counts must roll up everything beneath it, not just count its own sets.
+    private function withRolledUpCounts($categories)
+    {
+        $setCounts = QuestionSet::where('is_active', true)
+            ->selectRaw('category_id, COUNT(*) as total, SUM(is_paid = 0) as free, SUM(is_paid = 1) as paid')
+            ->groupBy('category_id')
+            ->get()
+            ->keyBy('category_id');
+
+        // A package belongs to its subcategory when it has one, else its top-level category
+        $packageCounts = QuestionSetPackage::where('is_active', true)
+            ->selectRaw('COALESCE(subcategory_id, category_id) as effective_category_id, COUNT(*) as total')
+            ->groupBy('effective_category_id')
+            ->pluck('total', 'effective_category_id');
+
+        return $categories->each(function ($category) use ($setCounts, $packageCounts) {
+            $descendantIds = $category->descendantIds();
+            $categoryIds = collect([$category->id])->merge($descendantIds);
+
+            $category->children_count      = Category::allKeyed()->where('parent_id', $category->id)->count();
+            $category->has_children        = !empty($descendantIds);
+            $category->question_sets_count = (int) $categoryIds->sum(fn ($id) => $setCounts->get($id)?->total ?? 0);
+            $category->free_sets_count     = (int) $categoryIds->sum(fn ($id) => $setCounts->get($id)?->free ?? 0);
+            $category->paid_sets_count     = (int) $categoryIds->sum(fn ($id) => $setCounts->get($id)?->paid ?? 0);
+            $category->packages_count      = (int) $categoryIds->sum(fn ($id) => $packageCounts->get($id) ?? 0);
+        });
     }
 
     // Get standalone (non-packaged) question sets by category/subcategory
@@ -173,6 +170,8 @@ class QuizController extends Controller
                     'is_paid'     => (bool) $questionSet->is_paid,
                     'price'       => $questionSet->is_paid ? (float) $questionSet->price : null,
                     'time_limit'  => $questionSet->time_limit,   // ← add
+                    // Score (%) needed to pass; null = the app's default pass mark
+                    'pass_percentage' => $questionSet->pass_percentage,
                     // How much of the grant was left going into this run (attempts /
                     // days) - shown to the user while they play. null for free content.
                     'access'      => $accessSummary,

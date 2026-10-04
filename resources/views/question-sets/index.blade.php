@@ -62,7 +62,7 @@
                                 @endif
                             </td>
                             @php
-                                $topCategory = $set->category->isSubcategory() ? $set->category->parent : $set->category;
+                                $topCategory = $set->category->root();
                                 $subCategory = $set->category->isSubcategory() ? $set->category : null;
                             @endphp
                             <td class="py-4">
@@ -77,7 +77,7 @@
                                     <div class="flex items-center gap-2">
                                         <div class="h-2 w-2 rounded-full"
                                             style="background-color: {{ $subCategory->color }};"></div>
-                                        <span class="text-gray-700">{{ $subCategory->name }}</span>
+                                        <span class="text-gray-700">{{ $subCategory->pathName(' → ', false) }}</span>
                                     </div>
                                 @else
                                     <span class="text-xs text-gray-400">—</span>

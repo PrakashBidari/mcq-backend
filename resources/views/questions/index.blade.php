@@ -35,7 +35,7 @@
                         @foreach ($categories as $category)
                             <option value="{{ $category->id }}"
                                 {{ request('category') == $category->id ? 'selected' : '' }}>
-                                {{ $category->name }}
+                                {{ str_repeat('- ', $category->depth) }}{{ $category->name }}
                             </option>
                         @endforeach
                     </select>
@@ -124,8 +124,7 @@
                                 // Categories (and subcategories) of this question's sets, deduped
                                 $setCategories = $question->questionSets->pluck('category')->filter()->unique('id');
                                 $topCategories = $setCategories
-                                    ->map(fn ($c) => $c->isSubcategory() ? $c->parent : $c)
-                                    ->filter()
+                                    ->map(fn ($c) => $c->root())
                                     ->unique('id');
                                 $subCategories = $setCategories->filter(fn ($c) => $c->isSubcategory())->unique('id');
                             @endphp
@@ -148,7 +147,7 @@
                                         <div class="flex items-center gap-2 whitespace-nowrap">
                                             <div class="h-2 w-2 rounded-full"
                                                 style="background-color: {{ $category->color }};"></div>
-                                            <span class="text-sm text-gray-700">{{ $category->name }}</span>
+                                            <span class="text-sm text-gray-700">{{ $category->pathName(' → ', false) }}</span>
                                         </div>
                                     @empty
                                         <span class="text-xs text-gray-400">—</span>

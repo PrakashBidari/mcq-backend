@@ -13,7 +13,8 @@ class PackageController extends Controller
     {
     }
 
-    // Packages assigned directly to this category or subcategory
+    // Packages assigned directly to this category (at whatever depth it sits) - a
+    // package belongs to its subcategory_id when it has one, else its top-level category_id.
     public function index($categoryId)
     {
         $category = Category::findOrFail($categoryId);
@@ -23,7 +24,8 @@ class PackageController extends Controller
             ->withCount('questionSets')
             ->where('is_active', true)
             ->where(function ($query) use ($categoryId) {
-                $query->where('category_id', $categoryId)->orWhere('subcategory_id', $categoryId);
+                $query->where('subcategory_id', $categoryId)
+                    ->orWhere(fn ($q) => $q->where('category_id', $categoryId)->whereNull('subcategory_id'));
             })
             ->get()
             ->map(fn (QuestionSetPackage $package) => $this->presentPackage($package, $user));

@@ -12,7 +12,7 @@ class QuestionSetController extends Controller
 {
     public function index()
     {
-        $questionSets = QuestionSet::with(['category.parent', 'package'])->withCount('questions')->get();
+        $questionSets = QuestionSet::with(['category', 'package'])->withCount('questions')->get();
         return view('question-sets.index', compact('questionSets'));
     }
 
@@ -21,11 +21,11 @@ class QuestionSetController extends Controller
         if (!auth()->user()->isAdmin() && !auth()->user()->hasPermission('create', 'QuestionSet')) {
             return redirect()->route('question-sets.index')->with('error', 'No permission.');
         }
-        $categories = Category::whereNull('parent_id')->with('children')->orderBy('name')->get();
+        $categories = Category::treeArray();
         $packages = QuestionSetPackage::orderBy('name')->get();
         $priceTiers = PriceTier::where('is_active', true)->orderBy('sort_order')->get();
-        [$selectedCategoryId, $selectedSubcategoryId] = $this->splitCategorySelection($categories, old('category_id'));
-        return view('question-sets.create', compact('categories', 'packages', 'priceTiers', 'selectedCategoryId', 'selectedSubcategoryId'));
+        $selectedPath = Category::pathIds(old('category_id'));
+        return view('question-sets.create', compact('categories', 'packages', 'priceTiers', 'selectedPath'));
     }
 
     public function store(Request $request)
@@ -46,11 +46,11 @@ class QuestionSetController extends Controller
             return redirect()->route('question-sets.index')->with('error', 'No permission.');
         }
         $questionSet = QuestionSet::withCount('questions')->findOrFail($id);
-        $categories  = Category::whereNull('parent_id')->with('children')->orderBy('name')->get();
+        $categories  = Category::treeArray();
         $packages = QuestionSetPackage::orderBy('name')->get();
         $priceTiers = PriceTier::where('is_active', true)->orderBy('sort_order')->get();
-        [$selectedCategoryId, $selectedSubcategoryId] = $this->splitCategorySelection($categories, old('category_id', $questionSet->category_id));
-        return view('question-sets.edit', compact('questionSet', 'categories', 'packages', 'priceTiers', 'selectedCategoryId', 'selectedSubcategoryId'));
+        $selectedPath = Category::pathIds(old('category_id', $questionSet->category_id));
+        return view('question-sets.edit', compact('questionSet', 'categories', 'packages', 'priceTiers', 'selectedPath'));
     }
 
     public function update(Request $request, string $id)
@@ -66,32 +66,6 @@ class QuestionSetController extends Controller
         return redirect()->route('question-sets.index')->with('success', 'Question set updated!');
     }
 
-    // Given a top-level Category collection (each with its `children` loaded) and an
-    // effective category id (which may belong to a top-level category or one of its
-    // children), returns [categoryId, subcategoryId] so the create/edit forms can
-    // preselect the right pair of dropdowns.
-    private function splitCategorySelection($categories, $effectiveId): array
-    {
-        if (!$effectiveId) {
-            return [null, null];
-        }
-
-        $effectiveId = (int) $effectiveId;
-
-        foreach ($categories as $category) {
-            if ($category->id === $effectiveId) {
-                return [$category->id, null];
-            }
-
-            $child = $category->children->firstWhere('id', $effectiveId);
-            if ($child) {
-                return [$category->id, $child->id];
-            }
-        }
-
-        return [null, null];
-    }
-
     private function validateRequest(Request $request): array
     {
         $validated = $request->validate([
@@ -105,6 +79,7 @@ class QuestionSetController extends Controller
             'access_type'   => 'nullable|in:attempts,days,hours,minutes|required_if:is_paid,1',
             'access_value'  => 'nullable|integer|min:1|required_if:is_paid,1',
             'time_limit'    => 'nullable|numeric|min:0.1|max:180',
+            'pass_percentage' => 'nullable|integer|min:1|max:100',
             'trial_enabled' => 'boolean',
             'trial_type'    => 'nullable|in:attempts,days|required_if:trial_enabled,1',
             'trial_value'   => 'nullable|integer|min:1|required_if:trial_enabled,1',
@@ -134,6 +109,7 @@ class QuestionSetController extends Controller
         }
 
         $validated['time_limit'] = $request->time_limit ?: null;
+        $validated['pass_percentage'] = $request->pass_percentage ?: null;
 
         return $validated;
     }

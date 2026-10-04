@@ -12,12 +12,13 @@ class QuestionController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Question::with(['options', 'questionSets.category.parent']);
+        $query = Question::with(['options', 'questionSets.category']);
 
-        // Filter by category (through question sets)
+        // Filter by category (through question sets) - includes everything nested under it
         if ($request->filled('category')) {
-            $query->whereHas('questionSets', function ($q) use ($request) {
-                $q->where('category_id', $request->category);
+            $categoryIds = Category::find($request->category)?->selfAndDescendantIds() ?? [$request->category];
+            $query->whereHas('questionSets', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
             });
         }
 
@@ -35,7 +36,7 @@ class QuestionController extends Controller
 
         $questions = $query->get();
 
-        $categories = Category::all();
+        $categories = Category::flatTree();
         $questionSets = QuestionSet::with('category')->get();
 
         return view('questions.index', compact('questions', 'categories', 'questionSets'));

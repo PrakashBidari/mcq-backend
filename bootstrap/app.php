@@ -18,6 +18,11 @@ return Application::configure(basePath: dirname(__DIR__))
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
 
+        // Daily visitor / active-user tracking for the dashboard charts
+        $middleware->api(append: [
+            \App\Http\Middleware\TrackVisit::class,
+        ]);
+
         // Middleware aliases
         $middleware->alias([
             'dashboard' => \App\Http\Middleware\CheckDashboardAccess::class,

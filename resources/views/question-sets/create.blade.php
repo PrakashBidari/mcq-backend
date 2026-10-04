@@ -23,40 +23,31 @@
             <form action="{{ route('question-sets.store') }}" method="POST" class="space-y-6 p-6">
                 @csrf
 
-                <!-- Category & Subcategory -->
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2"
-                    x-data="categorySelector({{ $categories->toJson() }}, {{ $selectedCategoryId ?? 'null' }}, {{ $selectedSubcategoryId ?? 'null' }})">
-                    <div>
-                        <label for="category_id" class="mb-2 block text-sm font-semibold text-gray-700">
-                            Category <span class="text-red-500">*</span>
-                        </label>
-                        <select id="category_id" x-model="categoryId" @change="onCategoryChange()" required
-                            class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500">
-                            <option value="">Select a category</option>
-                            <template x-for="cat in categories" :key="cat.id">
-                                <option :value="cat.id" x-text="cat.name"></option>
-                            </template>
-                        </select>
-                        @error('category_id')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
+                <!-- Category (any depth) -->
+                <div x-data="categorySelector(@js($categories), @js($selectedPath))">
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <template x-for="(options, level) in levels" :key="level">
+                            <div>
+                            <label class="mb-2 block text-sm font-semibold text-gray-700">
+                                <span x-text="level === 0 ? 'Category' : 'Subcategory (level ' + (level + 1) + ')'"></span>
+                                <span class="text-red-500" x-show="level === 0">*</span>
+                                <span class="ml-1 font-normal text-gray-400" x-show="level > 0">— optional</span>
+                            </label>
+                            <select :required="level === 0" @change="selectCategory(level, $event.target.value)"
+                                class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500">
+                                <option value="" x-text="level === 0 ? 'Select a category' : 'None'"></option>
+                                <template x-for="opt in options" :key="opt.id">
+                                    <option :value="opt.id" x-text="opt.name" :selected="opt.id == path[level]"></option>
+                                </template>
+                            </select>
+                            </div>
+                        </template>
                     </div>
 
-                    <div x-show="subcategories.length > 0">
-                        <label for="subcategory_id" class="mb-2 block text-sm font-semibold text-gray-700">
-                            Subcategory
-                            <span class="ml-1 font-normal text-gray-400">— optional</span>
-                        </label>
-                        <select id="subcategory_id" x-model="subcategoryId"
-                            class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500">
-                            <option value="">None</option>
-                            <template x-for="sub in subcategories" :key="sub.id">
-                                <option :value="sub.id" x-text="sub.name"></option>
-                            </template>
-                        </select>
-                    </div>
-
-                    <input type="hidden" name="category_id" :value="subcategoryId || categoryId">
+                    <input type="hidden" name="category_id" :value="path.length ? path[path.length - 1] : ''">
+                    @error('category_id')
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
                 </div>
 
                 <!-- Package -->
@@ -127,6 +118,22 @@
                     </div>
                     <p class="mt-1 text-xs text-gray-500">Allowed: 1–180 minutes. Timer will count down during the quiz.</p>
                     @error('time_limit')
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Pass Percentage -->
+                <div>
+                    <label for="pass_percentage" class="mb-2 block text-sm font-semibold text-gray-700">
+                        Pass Percentage (%)
+                        <span class="ml-1 font-normal text-gray-400">— leave empty for the default (60%)</span>
+                    </label>
+                    <input type="number" name="pass_percentage" id="pass_percentage" value="{{ old('pass_percentage') }}"
+                        min="1" max="100" step="1"
+                        class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500"
+                        placeholder="e.g., 70 (70% correct needed to pass)">
+                    <p class="mt-1 text-xs text-gray-500">Allowed: 1–100. The app's result screen shows Passed / Not passed against this mark.</p>
+                    @error('pass_percentage')
                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                     @enderror
                 </div>
@@ -328,25 +335,31 @@
             }
         }
 
-        function categorySelector(categories, initialCategoryId, initialSubcategoryId) {
+        function categorySelector(categories, initialPath) {
             return {
                 categories: categories,
-                categoryId: initialCategoryId ? String(initialCategoryId) : '',
-                subcategoryId: initialSubcategoryId ? String(initialSubcategoryId) : '',
-                subcategories: [],
+                // Selected category ids, top-level first; the last one is where the set lives
+                path: initialPath || [],
 
-                init() {
-                    this.updateSubcategories();
+                // One entry per dropdown: the top-level categories, then the children of
+                // each category picked so far.
+                get levels() {
+                    const levels = [this.categories];
+                    let options = this.categories;
+
+                    for (const id of this.path) {
+                        const node = options.find(c => c.id == id);
+                        if (!node || !node.children.length) break;
+                        options = node.children;
+                        levels.push(options);
+                    }
+
+                    return levels;
                 },
 
-                onCategoryChange() {
-                    this.subcategoryId = '';
-                    this.updateSubcategories();
-                },
-
-                updateSubcategories() {
-                    const cat = this.categories.find(c => c.id == this.categoryId);
-                    this.subcategories = cat ? cat.children : [];
+                selectCategory(level, value) {
+                    this.path = this.path.slice(0, level);
+                    if (value) this.path.push(Number(value));
                 }
             }
         }

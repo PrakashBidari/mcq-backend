@@ -14,7 +14,7 @@ class QuestionSetPackageController extends Controller
     public function index()
     {
         $packages = QuestionSetPackage::with(['category', 'subcategory'])->withCount('questionSets')->orderBy('name')->get();
-        $categories = Category::whereNull('parent_id')->with('children')->orderBy('name')->get();
+        $categories = Category::flatTree();
 
         return view('packages.index', compact('packages', 'categories'));
     }
@@ -25,10 +25,11 @@ class QuestionSetPackageController extends Controller
             return redirect()->route('packages.index')->with('error', 'You do not have permission to create packages.');
         }
 
-        $categories = Category::whereNull('parent_id')->with('children')->orderBy('name')->get();
+        $categories = Category::treeArray();
         $priceTiers = PriceTier::where('is_active', true)->orderBy('sort_order')->get();
+        $selectedPath = Category::pathIds(old('subcategory_id') ?: old('category_id'));
 
-        return view('packages.create', compact('categories', 'priceTiers'));
+        return view('packages.create', compact('categories', 'priceTiers', 'selectedPath'));
     }
 
     public function store(Request $request)
@@ -43,7 +44,7 @@ class QuestionSetPackageController extends Controller
         $package = QuestionSetPackage::create($validated);
 
         // Question sets are tagged with whichever category they actually live under
-        // (the subcategory itself when one exists), not the top-level parent.
+        // (the deepest category picked when one exists), not the top-level parent.
         $effectiveCategoryId = $package->subcategory_id ?: $package->category_id;
 
         if (!empty($questionSetIds)) {
@@ -63,11 +64,14 @@ class QuestionSetPackageController extends Controller
         }
 
         $package = QuestionSetPackage::with('questionSets')->findOrFail($id);
-        $categories = Category::whereNull('parent_id')->with('children')->orderBy('name')->get();
+        $categories = Category::treeArray();
         $priceTiers = PriceTier::where('is_active', true)->orderBy('sort_order')->get();
+        $selectedPath = Category::pathIds(
+            old('subcategory_id', $package->subcategory_id) ?: old('category_id', $package->category_id)
+        );
 
         // Question sets are tagged with whichever category they actually live under
-        // (the subcategory itself when one exists), not the top-level parent.
+        // (the deepest category picked when one exists), not the top-level parent.
         $effectiveCategoryId = $package->subcategory_id ?: $package->category_id;
 
         // Sets already in this package, plus unpackaged sets in its category, are selectable
@@ -78,7 +82,7 @@ class QuestionSetPackageController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('packages.edit', compact('package', 'categories', 'priceTiers', 'availableSets'));
+        return view('packages.edit', compact('package', 'categories', 'priceTiers', 'availableSets', 'selectedPath'));
     }
 
     public function update(Request $request, string $id)
@@ -100,7 +104,7 @@ class QuestionSetPackageController extends Controller
             ->update(['package_id' => null]);
 
         // Question sets are tagged with whichever category they actually live under
-        // (the subcategory itself when one exists), not the top-level parent.
+        // (the deepest category picked when one exists), not the top-level parent.
         $effectiveCategoryId = $package->subcategory_id ?: $package->category_id;
 
         if (!empty($questionSetIds)) {
@@ -166,6 +170,12 @@ class QuestionSetPackageController extends Controller
             'trial_type'     => 'nullable|in:attempts,days|required_if:trial_enabled,1',
             'trial_value'    => 'nullable|integer|min:1|required_if:trial_enabled,1',
         ]);
+
+        // category_id always holds the top-level category and subcategory_id the
+        // category actually picked beneath it (at any depth), whatever was posted.
+        $path = Category::pathIds($validated['subcategory_id'] ?? $validated['category_id']);
+        $validated['category_id'] = $path[0];
+        $validated['subcategory_id'] = count($path) > 1 ? end($path) : null;
 
         $validated['slug'] = $id
             ? QuestionSetPackage::find($id)->slug
