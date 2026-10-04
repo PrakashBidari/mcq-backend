@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class QuestionSet extends Model
 {
@@ -83,5 +84,27 @@ class QuestionSet extends Model
         }
 
         return Purchase::userOwns($userId, $this->id);
+    }
+
+    // Sets each set's `paragraphs_count` (distinct reading paragraphs among its
+    // questions) with a single query for the whole list.
+    public static function loadParagraphsCount(iterable $sets): void
+    {
+        $sets = collect($sets);
+        if ($sets->isEmpty()) {
+            return;
+        }
+
+        $counts = DB::table('question_question_set')
+            ->join('questions', 'questions.id', '=', 'question_question_set.question_id')
+            ->whereIn('question_question_set.question_set_id', $sets->pluck('id'))
+            ->whereNotNull('questions.paragraph_id')
+            ->groupBy('question_question_set.question_set_id')
+            ->selectRaw('question_question_set.question_set_id as set_id, COUNT(DISTINCT questions.paragraph_id) as total')
+            ->pluck('total', 'set_id');
+
+        foreach ($sets as $set) {
+            $set->paragraphs_count = (int) ($counts[$set->id] ?? 0);
+        }
     }
 }

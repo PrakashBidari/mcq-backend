@@ -99,6 +99,8 @@ class QuizController extends Controller
 
         $user = auth('sanctum')->user();
 
+        QuestionSet::loadParagraphsCount($category->questionSets);
+
         $questionSets = $category->questionSets->map(function ($set) use ($user) {
             return $this->presentQuestionSet($set, $user);
         });
@@ -117,7 +119,7 @@ class QuizController extends Controller
     {
         $questionSet = QuestionSet::with([
             'questions' => function ($query) {
-                $query->with('options')
+                $query->with(['options', 'paragraph'])
                     ->reorder() // ← clears default pivot_order
                     ->orderByRaw('questions.position IS NULL, questions.position ASC, questions.id DESC');
             },
@@ -147,16 +149,7 @@ class QuizController extends Controller
         $accessSummary = $this->accessControl->accessSummary($user, $questionSet);
 
         $questions = $questionSet->questions->map(function ($question) use ($questionSet) {
-            return [
-                'id'            => $question->id,
-                'position'      => $question->position,   // ← add
-                'question'      => $question->question,
-                'options'       => $question->options->pluck('option_text')->toArray(),
-                'correctAnswer' => (int) $question->correct_answer,
-                'category'      => $questionSet->category->name,
-                'difficulty'    => $question->difficulty,
-                'explanation'   => $question->explanation ?? '',
-            ];
+            return $this->presentQuestion($question, $questionSet->category->name);
         });
 
         return response()->json([
@@ -179,6 +172,33 @@ class QuizController extends Controller
                 'questions' => $questions
             ]
         ]);
+    }
+
+    // One quiz question for the app. `options` stays a plain string array so older app
+    // versions keep working; images and the optional reading paragraph are extra fields.
+    // Questions that share a `paragraph` are shown together on one page, 1 mark each.
+    private function presentQuestion(Question $question, ?string $categoryName): array
+    {
+        $paragraph = $question->paragraph;
+
+        return [
+            'id'            => $question->id,
+            'position'      => $question->position,
+            'question'      => $question->question,
+            'image'         => $question->image_url,
+            'options'       => $question->options->map(fn ($o) => $o->option_text ?? '')->toArray(),
+            'optionImages'  => $question->options->map(fn ($o) => $o->image_url)->toArray(),
+            'correctAnswer' => (int) $question->correct_answer,
+            'category'      => $categoryName,
+            'difficulty'    => $question->difficulty,
+            'explanation'   => $question->explanation ?? '',
+            'paragraph'     => $paragraph ? [
+                'id'      => $paragraph->id,
+                'title'   => $paragraph->title,
+                'content' => $paragraph->content,
+                'image'   => $paragraph->image_url,
+            ] : null,
+        ];
     }
 
     private function purchaseRequiredPayload(QuestionSet $questionSet): array
@@ -216,6 +236,8 @@ class QuizController extends Controller
             'is_owned'        => $access['allowed'] && $access['reason'] !== 'trial',
             'trial_available' => $access['reason'] === 'trial',
             'questions_count' => $set->questions_count ?? $set->questions()->count(),
+            // Reading paragraphs in the set (each groups several of its questions).
+            'paragraphs_count' => (int) ($set->paragraphs_count ?? 0),
             // Attempts left / expiry of the grant the user currently holds, so the
             // card can show a live "3 attempts left" / "expires in 5h" badge under
             // the Owned tag. For a package-gated set this reflects the package grant.
@@ -301,21 +323,15 @@ class QuizController extends Controller
             ], 404);
         }
 
-        $questions = Question::with(['options'])
+        $questions = Question::with(['options', 'paragraph'])
             ->whereIn('id', $questionIds)
             ->inRandomOrder()
             ->limit($request->count)
             ->get()
             ->map(function ($question) use ($category) {
-                return [
-                    'id'            => $question->id,
-                    'question'      => $question->question,
-                    'options'       => $question->options->pluck('option_text')->toArray(),
-                    'correctAnswer' => (int) $question->correct_answer,
-                    'category'      => $category->name,
-                    'difficulty'    => $question->difficulty,
-                    'explanation'   => $question->explanation ?? '',
-                ];
+                $data = $this->presentQuestion($question, $category->name);
+                unset($data['position']); // random quiz keeps its random order
+                return $data;
             });
 
         return response()->json([
@@ -541,8 +557,10 @@ class QuizController extends Controller
             ->whereNull('package_id')
             ->where('name', 'LIKE', "%{$query}%")
             ->limit(10)
-            ->get()
-            ->map(fn ($set) => $this->presentQuestionSet($set, $user));
+            ->get();
+
+        QuestionSet::loadParagraphsCount($sets);
+        $sets = $sets->map(fn ($set) => $this->presentQuestionSet($set, $user));
 
         return response()->json(['success' => true, 'data' => $sets]);
     }

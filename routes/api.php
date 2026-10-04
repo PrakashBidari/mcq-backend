@@ -13,10 +13,10 @@ use Illuminate\Support\Facades\Route;
 
 
 // Public routes
-// reCAPTCHA-gated: these either send SMTP mail (register / resend-otp / forgot-password)
-// or are public spam vectors (login). The throttle is defence-in-depth against volume.
+// reCAPTCHA-gated: these send SMTP mail (register / resend-otp / forgot-password).
+// Login is intentionally NOT captcha-gated - it relies on the throttle below only.
 Route::post('/register', [AuthController::class, 'register'])->middleware(['recaptcha', 'throttle:6,1']);
-Route::post('/login', [AuthController::class, 'login'])->middleware(['recaptcha', 'throttle:10,1']);
+Route::post('/login', [AuthController::class, 'login'])->middleware(['throttle:10,1']);
 Route::post('/resend-otp', [AuthController::class, 'resendOtp'])->middleware(['recaptcha', 'throttle:4,1']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware(['recaptcha', 'throttle:4,1']); // NEW
 

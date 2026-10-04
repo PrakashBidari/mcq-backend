@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Models\QuestionSet;
 use App\Models\QuestionSetPackage;
 use App\Services\AccessControlService;
 
@@ -47,6 +48,8 @@ class PackageController extends Controller
 
         $user = auth('sanctum')->user();
 
+        QuestionSet::loadParagraphsCount($package->questionSets);
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -56,6 +59,7 @@ class PackageController extends Controller
                     'name' => $set->name,
                     'description' => $set->description,
                     'questions_count' => $set->questions_count,
+                    'paragraphs_count' => $set->paragraphs_count,
                 ]),
             ],
         ]);

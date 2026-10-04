@@ -7,9 +7,13 @@ use App\Models\QuestionSet;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use App\Models\QuestionOption;
+use App\Http\Controllers\Concerns\ManagesQuestionImages;
+use Illuminate\Validation\ValidationException;
 
 class QuestionController extends Controller
 {
+    use ManagesQuestionImages;
+
     public function index(Request $request)
     {
         $query = Question::with(['options', 'questionSets.category']);
@@ -60,37 +64,22 @@ class QuestionController extends Controller
             return redirect()->route('questions.index')->with('error', 'You do not have permission to create questions.');
         }
 
-        $validated = $request->validate([
-            'question_sets' => 'required|array|min:1',
-            'question_sets.*' => 'exists:question_sets,id',
-            'question' => 'required|string',
-            'options' => 'required|array|size:4',
-            'options.*' => 'required|string',
-            'correct_answer' => 'required|integer|min:0|max:3',
-            'difficulty' => 'required|in:Easy,Medium,Hard',
-            'explanation' => 'required|string',
-            'position' => 'nullable|integer|min:1|max:60',
-        ]);
+        $validated = $request->validate($this->rules());
+        if ($errors = $this->optionErrors($request)) {
+            throw ValidationException::withMessages($errors);
+        }
 
-        // Create question
         $question = Question::create([
             'question' => $validated['question'],
             'explanation' => $validated['explanation'],
             'difficulty' => $validated['difficulty'],
             'correct_answer' => $validated['correct_answer'],
             'position' => $validated['position'],
+            'image' => $this->questionImage($request),
         ]);
 
-        // Create options
-        foreach ($validated['options'] as $index => $optionText) {
-            QuestionOption::create([
-                'question_id' => $question->id,
-                'option_text' => $optionText,
-                'option_index' => $index,
-            ]);
-        }
+        $this->saveOptions($request, $question);
 
-        // Attach to question sets
         $question->questionSets()->attach($validated['question_sets']);
 
         return redirect()->route('questions.index')->with('success', 'Question created successfully!');
@@ -104,6 +93,12 @@ class QuestionController extends Controller
         }
 
         $question = Question::with(['options', 'questionSets'])->findOrFail($id);
+
+        // Paragraph questions are written and edited inside their paragraph.
+        if ($question->paragraph_id) {
+            return redirect()->route('paragraphs.edit', $question->paragraph_id);
+        }
+
         $questionSets = QuestionSet::with('category')->where('is_active', true)->get();
 
         return view('questions.edit', compact('question', 'questionSets'));
@@ -118,33 +113,23 @@ class QuestionController extends Controller
 
         $question = Question::findOrFail($id);
 
-        $validated = $request->validate([
-            'question_sets' => 'required|array|min:1',
-            'question_sets.*' => 'exists:question_sets,id',
-            'question' => 'required|string',
-            'options' => 'required|array|size:4',
-            'options.*' => 'required|string',
-            'correct_answer' => 'required|integer|min:0|max:3',
-            'difficulty' => 'required|in:Easy,Medium,Hard',
-            'explanation' => 'required|string',
-            'position' => 'nullable|integer|min:1|max:60',
-        ]);
+        $question->load('options');
 
-        // Update question
+        $validated = $request->validate($this->rules());
+        if ($errors = $this->optionErrors($request, '', $question)) {
+            throw ValidationException::withMessages($errors);
+        }
+
         $question->update([
             'question' => $validated['question'],
             'explanation' => $validated['explanation'],
             'difficulty' => $validated['difficulty'],
             'correct_answer' => $validated['correct_answer'],
             'position' => $validated['position'],
+            'image' => $this->questionImage($request, '', $question),
         ]);
 
-        // Update options
-        foreach ($validated['options'] as $index => $optionText) {
-            $question->options()->where('option_index', $index)->update([
-                'option_text' => $optionText,
-            ]);
-        }
+        $this->saveOptions($request, $question);
 
         // Sync question sets
         $question->questionSets()->sync($validated['question_sets']);
@@ -160,10 +145,26 @@ class QuestionController extends Controller
         }
 
         $question = Question::findOrFail($id);
-        $question->delete();
+        $this->deleteQuestion($question);
 
         return redirect()->route('questions.index')->with('success', 'Question deleted successfully!');
     }
 
-
+    private function rules(): array
+    {
+        return [
+            'question_sets' => 'required|array|min:1',
+            'question_sets.*' => 'exists:question_sets,id',
+            'question' => 'required|string',
+            'image' => self::IMAGE_RULE,
+            'options' => 'required|array|size:4',
+            'options.*' => 'nullable|string',
+            'option_images' => 'nullable|array',
+            'option_images.*' => self::IMAGE_RULE,
+            'correct_answer' => 'required|integer|min:0|max:3',
+            'difficulty' => 'required|in:Easy,Medium,Hard',
+            'explanation' => 'required|string',
+            'position' => 'nullable|integer|min:1|max:60',
+        ];
+    }
 }

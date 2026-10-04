@@ -23,7 +23,7 @@
                 <p class="mt-1 text-sm text-gray-600">Fill in all details to create a new question</p>
             </div>
 
-            <form action="{{ route('questions.store') }}" method="POST" class="space-y-6 p-6">
+            <form action="{{ route('questions.store') }}" method="POST" enctype="multipart/form-data" class="space-y-6 p-6">
                 @csrf
                 @include('partials.furigana-guide')
                 <!-- Question Sets (Searchable Multi-Select) -->
@@ -154,21 +154,40 @@
                     @enderror
                 </div>
 
+                <!-- Question Image (optional) -->
+                @include('questions.partials.image-input', [
+                    'name' => 'image',
+                    'errorKey' => 'image',
+                    'label' => 'Question Image',
+                    'current' => null,
+                    'removeName' => null,
+                ])
+
                 <!-- Options -->
                 <div>
                     <label class="mb-2 block text-sm font-semibold text-gray-700">
                         Answer Options <span class="text-red-500">*</span>
                     </label>
-                    <div class="space-y-3">
+                    <p class="mb-3 text-xs text-gray-500">Each option needs text, an image, or both.</p>
+                    <div class="space-y-4">
                         @for ($i = 0; $i < 4; $i++)
                             <div class="flex items-start gap-3">
                                 <div
-                                    class="mt-1 flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 font-bold text-purple-700">
+                                    class="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-100 font-bold text-purple-700">
                                     {{ chr(65 + $i) }}
                                 </div>
-                                <input type="text" name="options[]" value="{{ old('options.' . $i) }}" required
-                                    class="flex-1 rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500"
-                                    placeholder="Enter option {{ chr(65 + $i) }}">
+                                <div class="flex-1 space-y-2">
+                                    <input type="text" name="options[{{ $i }}]" value="{{ old('options.' . $i) }}"
+                                        class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-purple-500"
+                                        placeholder="Enter option {{ chr(65 + $i) }}">
+                                    @include('questions.partials.image-input', [
+                                        'name' => "option_images[$i]",
+                                        'errorKey' => "option_images.$i",
+                                        'label' => null,
+                                        'current' => null,
+                                        'removeName' => null,
+                                    ])
+                                </div>
                             </div>
                             @error('options.' . $i)
                                 <p class="ml-13 mt-1 text-sm text-red-600">{{ $message }}</p>

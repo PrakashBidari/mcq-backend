@@ -19,6 +19,7 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\PriceTierController;
 use App\Http\Controllers\PurchaseAdminController;
 use App\Http\Controllers\QuestionController;
+use App\Http\Controllers\ParagraphController;
 use App\Http\Controllers\QuestionSetController;
 use App\Http\Controllers\QuestionSetPackageController;
 use App\Http\Controllers\SubscriptionPlanController;
@@ -127,6 +128,8 @@ Route::middleware(['auth', 'dashboard'])->prefix('dashboard')->group(function ()
 
     // Questions CRUD
     Route::resource('questions', QuestionController::class);
+    // Reading paragraphs shared by several questions
+    Route::resource('paragraphs', ParagraphController::class);
 
     Route::resource('books', BookController::class);
     Route::resource('book-categories', BookCategoryController::class);
